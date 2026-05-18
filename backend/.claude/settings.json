@@ -1,0 +1,58 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(**/*.go)",
+      "// 允许递归读取所有 Go 文件",
+      "Read(go.{mod,sum})",
+      "// 包含 go.sum 以校验依赖一致性",
+      "Read({Makefile,*.md})",
+      "Read(specs/**)",
+      "Read(CLAUDE.md)",
+      "// 确保 AI 随时能读到项目宪法",
+      "Grep",
+      "Glob",
+      "LS",
+      "Bash(go version)",
+      "Bash(go list -m all)",
+      "Bash(go build ./**)",
+      "Bash(go test ./**)",
+      "Bash(go vet ./**)",
+      "// 增加静态检查",
+      "Bash(govulncheck ./**)",
+      "// Go 官方安全扫描工具",
+      "Bash(gofmt -l .)",
+      "Bash(goimports -l .)",
+      "Bash(golangci-lint run*)"
+    ],
+    "deny": [
+      "Read(**/.env*)",
+      "Read(**/*.{pem,key})",
+      "Read(**/node_modules/**)",
+      "Read(**/.history/**)",
+      "// 防止泄漏本地历史记录",
+      "Bash(rm **)",
+      "Bash(git push **)",
+      "WebFetch"
+    ],
+    "ask": [
+      "Write",
+      "Edit",
+      "MultiEdit",
+      "Bash(go mod tidy)",
+      "Bash(go get **)",
+      "Bash(go generate ./**)",
+      "// 允许生成代码（Mock/Protoc等）",
+      "Bash(git add **)",
+      "Bash(git commit **)"
+    ],
+    "defaultMode": "plan"
+  },
+  "enabledPlugins": {
+    "supabase@claude-plugins-official": true,
+    "commit-commands@claude-plugins-official": true,
+    "playwright@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "github@claude-plugins-official": true
+  }
+}

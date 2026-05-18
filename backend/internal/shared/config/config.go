@@ -1,6 +1,12 @@
 package config
 
-import "time"
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/spf13/viper"
+)
 
 // DatabaseConfig holds PostgreSQL connection parameters.
 type DatabaseConfig struct {
@@ -74,4 +80,55 @@ type Config struct {
 	Server   ServerConfig   `mapstructure:"server"`
 	AI       AIConfig       `mapstructure:"ai"`
 	Upload   UploadConfig   `mapstructure:"upload"`
+}
+
+// Docker Compose legacy env var mappings
+var legacyMappings = map[string]string{
+	"DATABASE_HOST":      "HEKA_DB_HOST",
+	"DATABASE_PORT":      "HEKA_DB_PORT",
+	"DATABASE_USER":      "HEKA_DB_USER",
+	"DATABASE_PASSWORD":  "HEKA_DB_PASSWORD",
+	"DATABASE_NAME":      "HEKA_DB_NAME",
+	"REDIS_HOST":         "HEKA_REDIS_HOST",
+	"REDIS_PORT":         "HEKA_REDIS_PORT",
+}
+
+func Load() (*Config, error) {
+	v := viper.New()
+
+	v.SetEnvPrefix("HEKA")
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.AutomaticEnv()
+
+	// Map legacy env vars
+	for old, newKey := range legacyMappings {
+		if val := v.GetString(old); val != "" {
+			v.Set(newKey, val)
+		}
+	}
+
+	// Set defaults
+	v.SetDefault("database.host", "localhost")
+	v.SetDefault("database.port", 5432)
+	v.SetDefault("database.sslmode", "disable")
+	v.SetDefault("database.max_open_conns", 25)
+	v.SetDefault("database.max_idle_conns", 10)
+	v.SetDefault("database.conn_max_lifetime", "5m")
+	v.SetDefault("redis.host", "localhost")
+	v.SetDefault("redis.port", 6379)
+	v.SetDefault("redis.db", 0)
+	v.SetDefault("milvus.host", "localhost")
+	v.SetDefault("milvus.port", 19530)
+	v.SetDefault("jwt.access_token_ttl", "24h")
+	v.SetDefault("jwt.refresh_token_ttl", "168h")
+	v.SetDefault("server.port", 8080)
+	v.SetDefault("upload.max_size", "52428800")
+	v.SetDefault("upload.storage_path", "./uploads")
+
+	var cfg Config
+	if err := v.Unmarshal(&cfg); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+
+	return &cfg, nil
 }

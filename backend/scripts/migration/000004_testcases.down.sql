@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS test_steps;
+DROP TABLE IF EXISTS test_cases;

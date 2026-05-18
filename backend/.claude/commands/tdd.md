@@ -7,6 +7,15 @@ model: opus
 
 # 执行协议：The Phase-Specific Red-Light Protocol
 
+## 项目文件关联
+
+本协议严格遵循以下项目规范文件：
+- **主规格**: `specs/001-backend-functionality/spec.md` — 后端功能规格 v1.2
+- **任务列表**: `specs/001-backend-functionality/tasks.md` — 175 个原子化任务
+- **项目计划**: `specs/001-backend-functionality/plan.md` — 高层实施计划 v1.1
+- **项目宪法**: `constitutions.md` — 不可动摇的开发原则 v2.0
+- **操作手册**: `CLAUDE.md` — DDD 架构与编码规范
+
 ## 触发方式
 
 ```bash
@@ -29,43 +38,89 @@ model: opus
 
 ### 1. 精准定位 (Targeting)
 
+**检查现有计划**: 执行前先检查是否存在对应 Phase 的活跃计划文件（`.claude/plans/*.md`）。如存在，直接使用该计划，不创建新计划。
+
 根据参数类型执行：
 
 **Phase 模式** (如 `/tdd 1`):
-- 匹配 `## Phase [N]:` 标题
+- 匹配 `tasks.md` 中 `## Phase [N]:` 标题
 - 提取该 Phase 下所有任务
-- 按依赖关系排序，优先处理无依赖的 `[P]` 任务
+- 按 `Depends` 字段排序，优先处理无依赖的 `[P]` 任务
+- 引用 `spec.md` 相关章节获取验收标准
 
 **Task ID 模式** (如 `/tdd T006`):
 - 正则匹配 `#### T(\d+):` 提取任务
 - 解析：File、Depends、Action、Details 字段
 - 验证依赖任务是否已完成（检查文件是否存在）
+- 关联 `spec.md` 中的对应验收标准
 
 ### 2. 上下文解析 (Context Resolution)
 
-1. **读取项目宪法**: `@constitutions.md` 第四条（测试务实）
-2. **读取项目规范**: `@CLAUDE.md` DDD 架构规范
-3. **确定测试策略**:
-   - Domain 层：纯单元测试，禁止 Mock（宪法 4.3）
-   - Repository 层：集成测试，使用 testcontainers
-   - Application 层：Mock Repository
-   - Interface 层：httptest
+**读取顺序**:
+1. **项目宪法**: `constitutions.md` 第四条（测试务实）
+2. **项目规范**: `CLAUDE.md` DDD 架构规范
+3. **功能规格**: `specs/001-backend-functionality/spec.md` 相关章节
+4. **任务详情**: `specs/001-backend-functionality/tasks.md` 对应任务
+
+**测试策略**:
+- Domain 层：纯单元测试，禁止 Mock（宪法 4.3）
+- Repository 层：集成测试，使用 testcontainers
+- Application 层：Mock Repository
+- Interface 层：httptest
 
 ### 3. 路径映射表 (Path Mapping)
 
-| Phase | 测试文件路径 | 说明 |
-|-------|-------------|------|
-| Phase 1 (Foundation) | 跳过 | 仅定义类型/接口，无需测试 |
-| Phase 2 (Infrastructure) | `internal/infrastructure/persistence/postgres/*_test.go` | TDD: Repository 实现 |
-| Phase 3 (Application) | `internal/application/*/service_test.go` | Mock Repository |
-| Phase 3 (Interface) | `internal/interface/http/handler/*_test.go` | httptest |
+根据 `tasks.md` 的 Phase 划分：
 
-### 4. 红灯阶段 (Red Phase) - 生成失败测试
+| Phase | tasks.md 范围 | 测试文件路径 | TDD 类型 |
+|-------|--------------|-------------|----------|
+| Phase 1 (Foundation) | T001-T038 | 跳过* | 仅类型/接口定义 |
+| Phase 2 (Infrastructure) | T039-T099 | `internal/infrastructure/**/*_test.go` | 集成测试 (testcontainers) |
+| Phase 3 (Application) | T100-T125 | `internal/application/*/service_test.go` | Mock Repository |
+| Phase 3 (Interface) | T126-T148 | `internal/interface/http/handler/*_test.go` | httptest |
+| Phase 4 (Integration) | T149-T158 | `tests/e2e/*_test.go`, `tests/migration/*_test.go` | 端到端测试 |
+
+> *Phase 1 例外: T012 (ValidateCaseTransition) 和 T014 (ValidatePlanTransition) 包含 Domain 层业务逻辑，应按宪法 4.1 编写单元测试。
+
+### 4. 计划文件集成 (Plan Integration)
+
+**执行前检查**:
+```
+.claude/plans/phase-N-*.md 存在？
+  ├─ 是 → 读取现有计划，验证与 tasks.md 对齐
+  └─ 否 → 继续执行（不自动创建计划）
+```
+
+**计划文件命名约定**:
+- Phase 范围: `.claude/plans/phase-{N}-{purpose}.md`
+- 单任务: `.claude/plans/task-{TXXX}-{purpose}.md`
+
+**与 tasks.md 的关联**:
+- 每个测试必须关联 `tasks.md` 中的具体任务 ID
+- 验收标准 (AC) 引用 `spec.md` 对应章节
+- 依赖关系严格遵循 `tasks.md` 的 `Depends` 字段
+
+### 5. 红灯阶段 (Red Phase) - 生成失败测试
 
 **原则**:
 - ✅ 只创建/修改 `*_test.go` 文件
 - ❌ 禁止修改业务逻辑代码
-- ✅ 测试必须体现验收标准 (AC)
+- ✅ 测试用例必须引用 `spec.md` 中的验收标准 (AC)
+- ✅ 测试文件头部注释关联任务 ID: `// tasks.md: T006`
+
+**验收标准映射**:
+从 `spec.md` 提取 AC 的示例：
+```go
+// tasks.md: T006 | spec.md: §9.1 ID 类型定义
+func TestNewID(t *testing.T) {
+    t.Parallel()
+    // AC: ID 必须是有效的 UUID v4 格式
+    id := NewID()
+    _, err := uuid.Parse(id.String())
+    assert.NoError(t, err)
+    assert.Equal(t, 4, uuid.Parse(id.String()).Version())
+}
+```
 
 **测试模板** (根据任务类型选择):
 

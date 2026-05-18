@@ -29,7 +29,7 @@
 - **Depends:** —
 - **Action:** Create
 - **Details:**
-  - `go mod init github.com/heka/heka-backend`
+  - `go mod init github.com/heka/heka`
   - 创建完整目录结构（参照 CLAUDE.md 目录规范）
   - `cmd/server/main.go` 仅 `func main() { log.Println("heka: starting...") }`
   - 确保 `go build ./...` 通过

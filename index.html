@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Heka - AI 测试管理平台</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'] },
+          colors: {
+            brand: {
+              50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe', 300: '#a5b4fc',
+              400: '#818cf8', 500: '#6366f1', 600: '#4f46e5', 700: '#4338ca',
+              800: '#3730a3', 900: '#312e81', 950: '#1e1b4b',
+            },
+            sidebar: { DEFAULT: '#0c0f1d', light: '#141829', hover: '#1c2038' },
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; margin: 0; overflow: hidden; height: 100vh; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #c7d2fe; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #a5b4fc; }
+
+    /* Layout */
+    #app { display: flex; flex-direction: column; height: 100vh; }
+    #main-layout { display: flex; flex: 1; overflow: hidden; }
+    #sidebar { width: 240px; min-width: 240px; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+    #sidebar.collapsed { width: 64px; min-width: 64px; }
+    #sidebar.collapsed .nav-label,
+    #sidebar.collapsed .sidebar-section-title,
+    #sidebar.collapsed .module-tree { display: none; }
+    #sidebar.collapsed .nav-item { justify-content: center; padding-left: 0; padding-right: 0; }
+    #sidebar.collapsed .nav-icon { margin-right: 0; }
+    #content { flex: 1; overflow-y: auto; background: #f1f5f9; }
+
+    /* Transitions */
+    .fade-in { animation: fadeIn 0.2s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    .slide-up { animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+    @keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Modal backdrop */
+    .modal-backdrop { background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); }
+
+    /* Priority badges */
+    .badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 9999px; font-size: 12px; font-weight: 600; line-height: 20px; }
+    .badge-draft { background: #f1f5f9; color: #64748b; }
+    .badge-ready { background: #ecfdf5; color: #059669; }
+    .badge-archived { background: #f1f5f9; color: #94a3b8; }
+    .badge-priority-0 { background: #f1f5f9; color: #94a3b8; }
+    .badge-priority-1 { background: #eef2ff; color: #6366f1; }
+    .badge-priority-2 { background: #fff7ed; color: #ea580c; }
+    .badge-priority-3 { background: #fef2f2; color: #dc2626; }
+
+    /* Status dots */
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .status-dot-draft { background: #94a3b8; }
+    .status-dot-ready { background: #10b981; }
+    .status-dot-archived { background: #cbd5e1; }
+
+    /* Checkbox */
+    .custom-checkbox { appearance: none; width: 16px; height: 16px; border: 2px solid #cbd5e1; border-radius: 4px; cursor: pointer; transition: all 0.15s; flex-shrink: 0; }
+    .custom-checkbox:checked { background: #4f46e5; border-color: #4f46e5; background-image: url("data:image/svg+xml,%3csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3e%3cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3e%3c/svg%3e"); }
+    .custom-checkbox:hover { border-color: #4f46e5; }
+
+    /* Table row hover */
+    .table-row { transition: background 0.1s; }
+    .table-row:hover { background: #f8fafc; }
+    .table-row.selected { background: #eef2ff; }
+
+    /* Toast */
+    .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+    .toast { padding: 12px 20px; border-radius: 8px; color: white; font-size: 14px; font-weight: 500; box-shadow: 0 8px 24px rgba(0,0,0,0.15); animation: toastIn 0.3s cubic-bezier(0.16,1,0.3,1); }
+    .toast-success { background: #059669; }
+    .toast-error { background: #dc2626; }
+    .toast-info { background: #2563eb; }
+    @keyframes toastIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+
+    /* Step editor */
+    .step-row { display: flex; gap: 12px; align-items: start; padding: 8px 0; }
+    .step-num { width: 28px; height: 28px; border-radius: 50%; background: #eef2ff; color: #4f46e5; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header class="h-14 bg-white border-b border-slate-200 flex items-center px-4 gap-4 flex-shrink-0" style="box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+      <!-- Logo -->
+      <div class="flex items-center gap-2.5 mr-2">
+        <div class="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        </div>
+        <span class="text-lg font-bold text-slate-800 tracking-tight">Heka</span>
+      </div>
+
+      <!-- Project Switcher -->
+      <div class="relative" id="project-switcher">
+        <button onclick="toggleProjectMenu()" class="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-slate-100 transition text-sm">
+          <span class="font-semibold text-slate-700">Heka 测试项目</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+      </div>
+
+      <!-- Search -->
+      <div class="flex-1 max-w-md mx-4">
+        <div class="relative">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input type="text" placeholder="搜索用例、计划..." class="w-full pl-9 pr-4 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition" />
+          <kbd class="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 font-sans">⌘K</kbd>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <!-- User -->
+        <div class="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-bold text-sm cursor-pointer">张</div>
+      </div>
+    </header>
+
+    <!-- Main Layout -->
+    <div id="main-layout">
+      <!-- Sidebar -->
+      <aside id="sidebar" class="bg-sidebar text-slate-300 flex flex-col overflow-hidden">
+        <!-- Collapse toggle -->
+        <div class="flex items-center justify-end p-3 pb-0">
+          <button onclick="toggleSidebar()" class="p-1.5 rounded-md hover:bg-sidebar-hover transition text-slate-500 hover:text-slate-300">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 19l-7-7 7-7"/><path d="M18 5l-7 7 7 7"/></svg>
+          </button>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="flex-1 overflow-y-auto px-3 py-2">
+          <div class="sidebar-section-title text-[10px] uppercase tracking-widest text-slate-600 font-bold px-3 mb-2 mt-1">导航</div>
+
+          <button onclick="navigate('overview')" class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition hover:bg-sidebar-hover text-slate-400 hover:text-slate-200 mb-0.5" data-nav="overview">
+            <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
+            <span class="nav-label">概览</span>
+          </button>
+
+          <button onclick="navigate('modules')" class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition hover:bg-sidebar-hover text-slate-400 hover:text-slate-200 mb-0.5" data-nav="modules">
+            <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg></span>
+            <span class="nav-label">模块</span>
+          </button>
+
+          <button onclick="navigate('testcases')" class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition bg-brand-600/20 text-brand-300 mb-0.5" data-nav="testcases">
+            <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></span>
+            <span class="nav-label font-semibold">用例</span>
+          </button>
+
+          <button onclick="navigate('plans')" class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition hover:bg-sidebar-hover text-slate-400 hover:text-slate-200 mb-0.5" data-nav="plans">
+            <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg></span>
+            <span class="nav-label">计划</span>
+          </button>
+
+          <button onclick="navigate('executions')" class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition hover:bg-sidebar-hover text-slate-400 hover:text-slate-200 mb-0.5" data-nav="executions">
+            <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="5 3 19 12 5 21 5 3"/></svg></span>
+            <span class="nav-label">执行</span>
+          </button>
+
+          <button onclick="navigate('reports')" class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition hover:bg-sidebar-hover text-slate-400 hover:text-slate-200 mb-0.5" data-nav="reports">
+            <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg></span>
+            <span class="nav-label">报告</span>
+          </button>
+
+          <button onclick="navigate('files')" class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition hover:bg-sidebar-hover text-slate-400 hover:text-slate-200 mb-0.5" data-nav="files">
+            <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg></span>
+            <span class="nav-label">文件</span>
+          </button>
+
+          <div class="sidebar-section-title text-[10px] uppercase tracking-widest text-slate-600 font-bold px-3 mb-2 mt-5">AI 能力</div>
+
+          <button onclick="navigate('ai-generate')" class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition hover:bg-sidebar-hover text-slate-400 hover:text-slate-200 mb-0.5" data-nav="ai-generate">
+            <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></span>
+            <span class="nav-label">AI 生成</span>
+          </button>
+
+          <button onclick="navigate('ai-analysis')" class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition hover:bg-sidebar-hover text-slate-400 hover:text-slate-200 mb-0.5" data-nav="ai-analysis">
+            <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg></span>
+            <span class="nav-label">AI 分析</span>
+          </button>
+
+          <!-- Module Tree -->
+          <div class="module-tree mt-5">
+            <div class="sidebar-section-title text-[10px] uppercase tracking-widest text-slate-600 font-bold px-3 mb-2">模块树</div>
+            <div id="module-tree"></div>
+          </div>
+        </nav>
+
+        <!-- Settings -->
+        <div class="px-3 py-2 border-t border-white/5">
+          <button onclick="navigate('settings')" class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition hover:bg-sidebar-hover text-slate-400 hover:text-slate-200" data-nav="settings">
+            <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg></span>
+            <span class="nav-label">设置</span>
+          </button>
+        </div>
+      </aside>
+
+      <!-- Content -->
+      <main id="content">
+        <div id="page-content"></div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Modal Container -->
+  <div id="modal-root"></div>
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script>
+    // ─── Mock Data ───────────────────────────────────────────
+    const modules = [
+      { id: 'm1', name: '认证模块', children: [
+        { id: 'm1-1', name: '登录模块', caseCount: 5 },
+        { id: 'm1-2', name: '注册模块', caseCount: 3 },
+        { id: 'm1-3', name: '密码重置', caseCount: 2 },
+      ]},
+      { id: 'm2', name: '支付模块', children: [
+        { id: 'm2-1', name: '下单流程', caseCount: 4 },
+        { id: 'm2-2', name: '退款流程', caseCount: 3 },
+      ]},
+      { id: 'm3', name: '用户管理', children: [
+        { id: 'm3-1', name: '个人资料', caseCount: 2 },
+        { id: 'm3-2', name: '权限管理', caseCount: 3 },
+      ]},
+    ];
+
+    const priorityLabels = { 0: '低', 1: '中', 2: '高', 3: '紧急' };
+    const statusLabels = { draft: '草稿', ready: '就绪', archived: '已归档' };
+    const moduleMap = {};
+    modules.forEach(m => m.children.forEach(c => moduleMap[c.id] = m.name + ' / ' + c.name));
+
+    let cases = [
+      { id: 'tc1', title: '用户使用正确账号密码登录成功', moduleId: 'm1-1', status: 'ready', priority: 2, tags: ['登录', '功能测试'], steps: [
+        { action: '打开登录页面', expected: '显示登录表单，包含用户名和密码输入框' },
+        { action: '输入正确的用户名 admin@test.com', expected: '用户名输入框显示输入内容' },
+        { action: '输入正确的密码 Test@123', expected: '密码以掩码形式显示' },
+        { action: '点击登录按钮', expected: '登录成功，跳转到首页，显示用户头像' },
+      ], createdBy: '张三', createdAt: '2025-05-15', version: 1 },
+      { id: 'tc2', title: '用户使用错误密码登录失败', moduleId: 'm1-1', status: 'ready', priority: 2, tags: ['登录', '异常测试'], steps: [
+        { action: '打开登录页面', expected: '显示登录表单' },
+        { action: '输入正确用户名', expected: '输入框显示内容' },
+        { action: '输入错误密码 wrong123', expected: '密码以掩码形式显示' },
+        { action: '点击登录按钮', expected: '提示"用户名或密码错误"' },
+      ], createdBy: '张三', createdAt: '2025-05-15', version: 1 },
+      { id: 'tc3', title: '用户注册新账号', moduleId: 'm1-2', status: 'draft', priority: 1, tags: ['注册', '功能测试'], steps: [
+        { action: '点击注册链接', expected: '跳转到注册页面' },
+        { action: '填写邮箱、用户名、密码', expected: '所有字段正确显示' },
+        { action: '点击注册按钮', expected: '注册成功，跳转到首页' },
+      ], createdBy: '李四', createdAt: '2025-05-14', version: 1 },
+      { id: 'tc4', title: '密码重置邮件发送', moduleId: 'm1-3', status: 'ready', priority: 1, tags: ['密码', '功能测试'], steps: [
+        { action: '点击"忘记密码"链接', expected: '跳转到密码重置页面' },
+        { action: '输入注册邮箱', expected: '邮箱输入框显示内容' },
+        { action: '点击发送按钮', expected: '提示"重置邮件已发送"' },
+      ], createdBy: '张三', createdAt: '2025-05-13', version: 1 },
+      { id: 'tc5', title: '用户下单购买商品', moduleId: 'm2-1', status: 'ready', priority: 3, tags: ['下单', '功能测试', '支付'], steps: [
+        { action: '浏览商品列表，选择商品', expected: '商品详情页正确显示' },
+        { action: '点击"立即购买"', expected: '进入确认订单页面' },
+        { action: '确认收货地址和支付方式', expected: '信息正确显示' },
+        { action: '点击"提交订单"', expected: '跳转到支付页面' },
+        { action: '完成支付', expected: '订单状态变为"已支付"' },
+      ], createdBy: '李四', createdAt: '2025-05-12', version: 2 },
+      { id: 'tc6', title: '退款申请提交', moduleId: 'm2-2', status: 'ready', priority: 2, tags: ['退款', '功能测试'], steps: [
+        { action: '进入订单详情页', expected: '显示订单信息' },
+        { action: '点击"申请退款"', expected: '弹出退款表单' },
+        { action: '填写退款原因并提交', expected: '提示"退款申请已提交"' },
+      ], createdBy: '王五', createdAt: '2025-05-12', version: 1 },
+      { id: 'tc7', title: '用户更新个人资料', moduleId: 'm3-1', status: 'draft', priority: 0, tags: ['个人资料', '功能测试'], steps: [
+        { action: '进入个人资料编辑页', expected: '显示当前资料信息' },
+        { action: '修改昵称为"新昵称"', expected: '输入框显示新内容' },
+        { action: '点击保存', expected: '提示"保存成功"' },
+      ], createdBy: '张三', createdAt: '2025-05-11', version: 1 },
+      { id: 'tc8', title: '管理员分配用户权限', moduleId: 'm3-2', status: 'ready', priority: 2, tags: ['权限', '管理'], steps: [
+        { action: '进入权限管理页面', expected: '显示用户列表和权限配置' },
+        { action: '选择用户并勾选"编辑"权限', expected: '权限变更实时显示' },
+        { action: '点击保存', expected: '提示"权限已更新"' },
+      ], createdBy: '李四', createdAt: '2025-05-10', version: 1 },
+      { id: 'tc9', title: '用户上传头像', moduleId: 'm3-1', status: 'ready', priority: 0, tags: ['个人资料', '上传'], steps: [
+        { action: '点击头像编辑按钮', expected: '弹出文件选择器' },
+        { action: '选择一张 jpg 图片', expected: '预览区域显示图片' },
+        { action: '点击确认上传', expected: '头像更新成功' },
+      ], createdBy: '王五', createdAt: '2025-05-10', version: 1 },
+      { id: 'tc10', title: '批量删除异常订单', moduleId: 'm2-1', status: 'archived', priority: 1, tags: ['订单', '批量操作'], steps: [
+        { action: '进入订单管理页面', expected: '显示订单列表' },
+        { action: '勾选多个异常订单', expected: '显示已选数量' },
+        { action: '点击批量删除', expected: '确认弹窗出现' },
+        { action: '点击确认删除', expected: '订单被删除，列表刷新' },
+      ], createdBy: '张三', createdAt: '2025-05-09', version: 1 },
+      { id: 'tc11', title: '登录页面账号锁定验证', moduleId: 'm1-1', status: 'ready', priority: 2, tags: ['登录', '安全测试'], steps: [
+        { action: '连续5次输入错误密码', expected: '前4次提示密码错误' },
+        { action: '第5次输入错误密码后点击登录', expected: '账号被锁定15分钟，提示锁定信息' },
+        { action: '等待锁定时间过后重新登录', expected: '可以使用正确密码登录' },
+      ], createdBy: '李四', createdAt: '2025-05-09', version: 1 },
+      { id: 'tc12', title: '退款审核通过流程', moduleId: 'm2-2', status: 'draft', priority: 1, tags: ['退款', '审核'], steps: [
+        { action: '管理员登录后台', expected: '进入管理首页' },
+        { action: '进入退款审核列表', expected: '显示待审核退款列表' },
+        { action: '点击某退款申请查看详情', expected: '显示退款详情和订单信息' },
+        { action: '点击通过审核', expected: '退款状态变为"已审核"' },
+      ], createdBy: '王五', createdAt: '2025-05-08', version: 1 },
+    ];
+
+    // ─── State ───────────────────────────────────────────────
+    const state = {
+      view: 'list',
+      selectedIds: new Set(),
+      filters: { keyword: '', status: '', priority: '', moduleId: '' },
+      currentPage: 1,
+      pageSize: 10,
+      currentCase: null,
+      editingCase: null,
+      sortField: 'createdAt',
+      sortDesc: true,
+      expandedModules: new Set(['m1', 'm2', 'm3']),
+    };
+
+    // ─── Utility ─────────────────────────────────────────────
+    function showToast(msg, type = 'success') {
+      const c = document.getElementById('toast-container');
+      const t = document.createElement('div');
+      t.className = `toast toast-${type}`;
+      t.textContent = msg;
+      c.appendChild(t);
+      setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.remove(), 300); }, 2500);
+    }
+
+    function navigate(page) {
+      if (page !== 'testcases') return;
+      state.view = 'list';
+      state.selectedIds.clear();
+      state.currentCase = null;
+      state.editingCase = null;
+      render();
+      // Update sidebar active
+      document.querySelectorAll('.nav-item').forEach(el => {
+        const nav = el.dataset.nav;
+        if (nav === page) {
+          el.classList.remove('hover:bg-sidebar-hover', 'text-slate-400', 'hover:text-slate-200');
+          el.classList.add('bg-brand-600/20', 'text-brand-300');
+        } else {
+          el.classList.remove('bg-brand-600/20', 'text-brand-300');
+          el.classList.add('hover:bg-sidebar-hover', 'text-slate-400', 'hover:text-slate-200');
+        }
+      });
+    }
+
+    function toggleSidebar() {
+      document.getElementById('sidebar').classList.toggle('collapsed');
+    }
+
+    function toggleProjectMenu() { /* placeholder */ }
+
+    // ─── Filtering & Sorting ────────────────────────────────
+    function getFilteredCases() {
+      let result = [...cases];
+      const f = state.filters;
+      if (f.keyword) {
+        const kw = f.keyword.toLowerCase();
+        result = result.filter(c => c.title.toLowerCase().includes(kw));
+      }
+      if (f.status) result = result.filter(c => c.status === f.status);
+      if (f.priority !== '') result = result.filter(c => c.priority === Number(f.priority));
+      if (f.moduleId) result = result.filter(c => c.moduleId === f.moduleId);
+
+      result.sort((a, b) => {
+        let va = a[state.sortField], vb = b[state.sortField];
+        if (typeof va === 'string') va = va.toLowerCase();
+        if (typeof vb === 'string') vb = vb.toLowerCase();
+        if (va < vb) return state.sortDesc ? 1 : -1;
+        if (va > vb) return state.sortDesc ? -1 : 1;
+        return 0;
+      });
+      return result;
+    }
+
+    // ─── Module Tree ─────────────────────────────────────────
+    function renderModuleTree() {
+      const container = document.getElementById('module-tree');
+      if (!container) return;
+      let html = '';
+      modules.forEach(m => {
+        const expanded = state.expandedModules.has(m.id);
+        html += `<div class="mb-0.5">
+          <button onclick="toggleModule('${m.id}')" class="w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-xs hover:bg-sidebar-hover transition text-slate-400 hover:text-slate-200 ${state.filters.moduleId === m.id ? 'text-brand-300 bg-brand-600/10' : ''}">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="transition-transform ${expanded ? 'rotate-90' : ''}"><path d="M9 18l6-6-6-6"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="${expanded ? '#6366f1' : 'none'}" stroke="${expanded ? '#6366f1' : 'currentColor'}" stroke-width="1.8"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+            <span class="nav-label truncate">${m.name}</span>
+          </button>`;
+        if (expanded) {
+          m.children.forEach(c => {
+            const active = state.filters.moduleId === c.id;
+            html += `<button onclick="filterByModule('${c.id}')" class="w-full flex items-center gap-2 pl-8 pr-3 py-1.5 rounded-md text-xs transition ${active ? 'text-brand-300 bg-brand-600/15' : 'text-slate-500 hover:text-slate-300 hover:bg-sidebar-hover'}">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+              <span class="nav-label truncate">${c.name}</span>
+              <span class="nav-label ml-auto text-slate-600 text-[10px]">${c.caseCount}</span>
+            </button>`;
+          });
+        }
+        html += '</div>';
+      });
+      // Reset filter
+      if (state.filters.moduleId) {
+        html += `<button onclick="filterByModule('')" class="w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-xs text-slate-500 hover:text-brand-300 hover:bg-sidebar-hover transition mt-1">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          <span class="nav-label">清除筛选</span>
+        </button>`;
+      }
+      container.innerHTML = html;
+    }
+
+    function toggleModule(id) {
+      if (state.expandedModules.has(id)) state.expandedModules.delete(id);
+      else state.expandedModules.add(id);
+      renderModuleTree();
+    }
+
+    function filterByModule(id) {
+      state.filters.moduleId = id;
+      state.currentPage = 1;
+      render();
+    }
+
+    // ─── Render Pages ────────────────────────────────────────
+    function render() {
+      const el = document.getElementById('page-content');
+      if (state.view === 'list') renderList(el);
+      else if (state.view === 'detail') renderDetail(el);
+      renderModuleTree();
+    }
+
+    // ─── Test Case List ──────────────────────────────────────
+    function renderList(el) {
+      const filtered = getFilteredCases();
+      const total = filtered.length;
+      const totalPages = Math.max(1, Math.ceil(total / state.pageSize));
+      if (state.currentPage > totalPages) state.currentPage = totalPages;
+      const start = (state.currentPage - 1) * state.pageSize;
+      const pageCases = filtered.slice(start, start + state.pageSize);
+
+      el.innerHTML = `<div class="fade-in">
+        <!-- Breadcrumb -->
+        <div class="px-6 pt-5 pb-0">
+          <div class="flex items-center gap-2 text-sm text-slate-400">
+            <span class="text-brand-600 font-medium cursor-pointer hover:text-brand-700">Heka 测试项目</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            <span class="text-slate-700 font-semibold">测试用例</span>
+          </div>
+        </div>
+
+        <!-- Page Header -->
+        <div class="px-6 pt-4 pb-2 flex items-center justify-between">
+          <h1 class="text-xl font-bold text-slate-800">测试用例</h1>
+          <div class="flex items-center gap-2">
+            <button onclick="openCreateModal()" class="inline-flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 transition shadow-sm">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+              创建用例
+            </button>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="px-6 py-3">
+          <div class="flex items-center gap-3 flex-wrap">
+            <div class="relative flex-1 min-w-[200px] max-w-xs">
+              <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+              <input type="text" placeholder="搜索用例标题..." value="${state.filters.keyword}" oninput="state.filters.keyword=this.value;state.currentPage=1;render()" class="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-400 transition" />
+            </div>
+            <select onchange="state.filters.status=this.value;state.currentPage=1;render()" class="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-500/40 cursor-pointer">
+              <option value="">全部状态</option>
+              <option value="draft" ${state.filters.status==='draft'?'selected':''}>草稿</option>
+              <option value="ready" ${state.filters.status==='ready'?'selected':''}>就绪</option>
+              <option value="archived" ${state.filters.status==='archived'?'selected':''}>已归档</option>
+            </select>
+            <select onchange="state.filters.priority=this.value===''?'':Number(this.value);state.currentPage=1;render()" class="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-brand-500/40 cursor-pointer">
+              <option value="">全部优先级</option>
+              <option value="0" ${state.filters.priority===0?'selected':''}>低</option>
+              <option value="1" ${state.filters.priority===1?'selected':''}>中</option>
+              <option value="2" ${state.filters.priority===2?'selected':''}>高</option>
+              <option value="3" ${state.filters.priority===3?'selected':''}>紧急</option>
+            </select>
+            <span class="text-xs text-slate-400 ml-auto">共 ${total} 条用例</span>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div class="px-6 pb-2">
+          <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
+            <table class="w-full">
+              <thead>
+                <tr class="border-b border-slate-100 bg-slate-50/50">
+                  <th class="w-10 px-4 py-3"><input type="checkbox" class="custom-checkbox" onchange="toggleSelectAll(this.checked)" ${state.selectedIds.size===pageCases.length && pageCases.length>0?'checked':''} /></th>
+                  <th class="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-2 py-3 cursor-pointer select-none hover:text-slate-700" onclick="toggleSort('title')">
+                    标题 ${sortIcon('title')}
+                  </th>
+                  <th class="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-2 py-3 w-32">模块</th>
+                  <th class="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-2 py-3 w-20 cursor-pointer select-none hover:text-slate-700" onclick="toggleSort('status')">
+                    状态 ${sortIcon('status')}
+                  </th>
+                  <th class="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-2 py-3 w-20 cursor-pointer select-none hover:text-slate-700" onclick="toggleSort('priority')">
+                    优先级 ${sortIcon('priority')}
+                  </th>
+                  <th class="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-2 py-3 w-36">标签</th>
+                  <th class="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-2 py-3 w-20 cursor-pointer select-none hover:text-slate-700" onclick="toggleSort('createdBy')">
+                    创建人 ${sortIcon('createdBy')}
+                  </th>
+                  <th class="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-2 py-3 w-24 cursor-pointer select-none hover:text-slate-700" onclick="toggleSort('createdAt')">
+                    创建时间 ${sortIcon('createdAt')}
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                ${pageCases.length === 0 ? `<tr><td colspan="8" class="text-center py-16 text-slate-400">
+                  <svg class="mx-auto mb-3 text-slate-300" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+                  暂无匹配的测试用例
+                </td></tr>` : pageCases.map(c => `
+                <tr class="table-row ${state.selectedIds.has(c.id)?'selected':''} cursor-pointer" onclick="openDetail('${c.id}')">
+                  <td class="px-4 py-3" onclick="event.stopPropagation()">
+                    <input type="checkbox" class="custom-checkbox" ${state.selectedIds.has(c.id)?'checked':''} onchange="toggleSelect('${c.id}',this.checked)" />
+                  </td>
+                  <td class="px-2 py-3">
+                    <span class="text-sm font-medium text-slate-800 hover:text-brand-600 transition">${c.title}</span>
+                  </td>
+                  <td class="px-2 py-3 text-sm text-slate-500">${moduleMap[c.moduleId] || '-'}</td>
+                  <td class="px-2 py-3"><span class="inline-flex items-center gap-1.5 text-xs font-medium"><span class="status-dot status-dot-${c.status}"></span>${statusLabels[c.status]}</span></td>
+                  <td class="px-2 py-3"><span class="badge badge-priority-${c.priority}">${priorityLabels[c.priority]}</span></td>
+                  <td class="px-2 py-3">${c.tags.map(t => `<span class="inline-block text-[11px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 mr-1 mb-0.5">${t}</span>`).join('')}</td>
+                  <td class="px-2 py-3 text-sm text-slate-500">${c.createdBy}</td>
+                  <td class="px-2 py-3 text-sm text-slate-400">${c.createdAt}</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Batch Actions -->
+        ${state.selectedIds.size > 0 ? `<div class="px-6 py-2 slide-up">
+          <div class="bg-brand-600 text-white rounded-xl px-5 py-3 flex items-center gap-4 shadow-lg shadow-brand-600/20">
+            <span class="text-sm font-semibold">已选 ${state.selectedIds.size} 项</span>
+            <div class="flex-1"></div>
+            <button onclick="batchChangeStatus('ready')" class="px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-sm font-medium transition">标记就绪</button>
+            <button onclick="batchChangeStatus('draft')" class="px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-sm font-medium transition">标记草稿</button>
+            <button onclick="batchArchive()" class="px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-sm font-medium transition">归档</button>
+            <button onclick="batchDelete()" class="px-3 py-1.5 rounded-lg bg-red-500/80 hover:bg-red-500 text-sm font-medium transition">删除</button>
+          </div>
+        </div>` : ''}
+
+        <!-- Pagination -->
+        <div class="px-6 py-4 flex items-center justify-between">
+          <span class="text-sm text-slate-400">第 ${start+1}-${Math.min(start+state.pageSize, total)} 条，共 ${total} 条</span>
+          <div class="flex items-center gap-1">
+            <button onclick="goPage(${state.currentPage-1})" class="px-3 py-1.5 rounded-lg text-sm ${state.currentPage<=1?'text-slate-300 cursor-not-allowed':'text-slate-600 hover:bg-slate-100'}" ${state.currentPage<=1?'disabled':''}>上一页</button>
+            ${pageButtons(state.currentPage, totalPages)}
+            <button onclick="goPage(${state.currentPage+1})" class="px-3 py-1.5 rounded-lg text-sm ${state.currentPage>=totalPages?'text-slate-300 cursor-not-allowed':'text-slate-600 hover:bg-slate-100'}" ${state.currentPage>=totalPages?'disabled':''}>下一页</button>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    function sortIcon(field) {
+      if (state.sortField !== field) return '<svg class="inline ml-0.5 opacity-30" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7-7 7 7"/></svg>';
+      return state.sortDesc
+        ? '<svg class="inline ml-0.5 text-brand-500" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14"/></svg>'
+        : '<svg class="inline ml-0.5 text-brand-500" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5"/></svg>';
+    }
+
+    function toggleSort(field) {
+      if (state.sortField === field) state.sortDesc = !state.sortDesc;
+      else { state.sortField = field; state.sortDesc = true; }
+      render();
+    }
+
+    function pageButtons(current, total) {
+      let pages = [];
+      for (let i = 1; i <= total; i++) {
+        if (i === current) pages.push(`<button class="w-9 h-9 rounded-lg text-sm font-semibold bg-brand-600 text-white">${i}</button>`);
+        else pages.push(`<button onclick="goPage(${i})" class="w-9 h-9 rounded-lg text-sm text-slate-600 hover:bg-slate-100 transition">${i}</button>`);
+      }
+      return pages.join('');
+    }
+
+    function goPage(p) {
+      const filtered = getFilteredCases();
+      const total = Math.max(1, Math.ceil(filtered.length / state.pageSize));
+      if (p < 1 || p > total) return;
+      state.currentPage = p;
+      render();
+    }
+
+    // ─── Selection ──────────────────────────────────────────
+    function toggleSelect(id, checked) {
+      if (checked) state.selectedIds.add(id); else state.selectedIds.delete(id);
+      render();
+    }
+
+    function toggleSelectAll(checked) {
+      const pageCases = getFilteredCases().slice((state.currentPage-1)*state.pageSize, state.currentPage*state.pageSize);
+      state.selectedIds.clear();
+      if (checked) pageCases.forEach(c => state.selectedIds.add(c.id));
+      render();
+    }
+
+    // ─── Batch Actions ──────────────────────────────────────
+    function batchChangeStatus(status) {
+      state.selectedIds.forEach(id => {
+        const c = cases.find(x => x.id === id);
+        if (c) c.status = status;
+      });
+      const count = state.selectedIds.size;
+      state.selectedIds.clear();
+      showToast(`已将 ${count} 条用例标记为${statusLabels[status]}`);
+      render();
+    }
+
+    function batchArchive() {
+      state.selectedIds.forEach(id => {
+        const c = cases.find(x => x.id === id);
+        if (c) c.status = 'archived';
+      });
+      const count = state.selectedIds.size;
+      state.selectedIds.clear();
+      showToast(`已归档 ${count} 条用例`);
+      render();
+    }
+
+    function batchDelete() {
+      if (!confirm(`确定删除选中的 ${state.selectedIds.size} 条用例？此操作不可恢复`)) return;
+      cases = cases.filter(c => !state.selectedIds.has(c.id));
+      const count = state.selectedIds.size;
+      state.selectedIds.clear();
+      showToast(`已删除 ${count} 条用例`);
+      render();
+    }
+
+    // ─── Test Case Detail ────────────────────────────────────
+    function openDetail(id) {
+      state.currentCase = cases.find(c => c.id === id);
+      state.view = 'detail';
+      state.editingCase = null;
+      render();
+      document.getElementById('content').scrollTop = 0;
+    }
+
+    function renderDetail(el) {
+      const c = state.currentCase;
+      if (!c) return;
+      const isEditing = !!state.editingCase;
+      const ec = state.editingCase || c;
+
+      el.innerHTML = `<div class="fade-in">
+        <!-- Breadcrumb -->
+        <div class="px-6 pt-5 pb-0">
+          <div class="flex items-center gap-2 text-sm">
+            <button onclick="state.view='list';state.currentCase=null;render()" class="text-brand-600 font-medium hover:text-brand-700 transition flex items-center gap-1">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+              用例列表
+            </button>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-slate-300"><path d="M9 18l6-6-6-6"/></svg>
+            <span class="text-slate-500">${moduleMap[c.moduleId] || '未分类'}</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-slate-300"><path d="M9 18l6-6-6-6"/></svg>
+            <span class="text-slate-700 font-medium truncate">${c.title}</span>
+          </div>
+        </div>
+
+        <!-- Header -->
+        <div class="px-6 pt-4 pb-2">
+          <div class="flex items-start justify-between gap-4">
+            <div class="flex-1">
+              ${isEditing
+                ? `<input id="edit-title" type="text" value="${escHtml(ec.title)}" class="w-full text-xl font-bold text-slate-800 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-400" />`
+                : `<h1 class="text-xl font-bold text-slate-800">${escHtml(c.title)}</h1>`
+              }
+              <div class="flex items-center gap-3 mt-2 text-sm text-slate-500">
+                <span class="inline-flex items-center gap-1.5"><span class="status-dot status-dot-${c.status}"></span>${statusLabels[c.status]}</span>
+                <span>·</span>
+                <span class="badge badge-priority-${c.priority}">${priorityLabels[c.priority]}优先级</span>
+                <span>·</span>
+                <span>${c.createdBy} 创建于 ${c.createdAt}</span>
+                <span>·</span>
+                <span>v${c.version}</span>
+              </div>
+              <div class="flex items-center gap-1.5 mt-2">
+                ${c.tags.map(t => `<span class="text-[11px] px-2.5 py-0.5 rounded-full bg-brand-50 text-brand-600 font-medium">${t}</span>`).join('')}
+              </div>
+            </div>
+            <div class="flex items-center gap-2 flex-shrink-0">
+              ${!isEditing ? `
+                <button onclick="startEdit()" class="px-4 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 transition">编辑</button>
+                <button onclick="deleteCase('${c.id}')" class="px-4 py-2 rounded-lg border border-red-200 text-sm font-medium text-red-500 hover:bg-red-50 transition">删除</button>
+              ` : `
+                <button onclick="saveEdit()" class="px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition">保存</button>
+                <button onclick="cancelEdit()" class="px-4 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 transition">取消</button>
+              `}
+            </div>
+          </div>
+        </div>
+
+        <!-- Description -->
+        <div class="px-6 py-4">
+          <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+            <h3 class="text-sm font-bold text-slate-700 mb-3 flex items-center gap-2">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+              描述
+            </h3>
+            ${isEditing
+              ? `<textarea id="edit-desc" class="w-full text-sm text-slate-600 border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500/40 min-h-[80px]" placeholder="添加描述...">${escHtml(ec.description||'')}</textarea>`
+              : `<p class="text-sm text-slate-600 leading-relaxed">${ec.description || '<span class="text-slate-400 italic">暂无描述</span>'}</p>`
+            }
+          </div>
+        </div>
+
+        <!-- Steps -->
+        <div class="px-6 pb-4">
+          <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+            <h3 class="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+              测试步骤
+            </h3>
+            <div id="steps-container">
+              ${(isEditing ? ec : c).steps.map((s, i) => `
+                <div class="step-row">
+                  <div class="step-num">${i+1}</div>
+                  ${isEditing ? `
+                    <div class="flex-1">
+                      <input type="text" value="${escHtml(s.action)}" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mb-1 focus:outline-none focus:ring-2 focus:ring-brand-500/40" placeholder="操作步骤" data-step="${i}" data-field="action" />
+                      <input type="text" value="${escHtml(s.expected)}" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500/40" placeholder="预期结果" data-step="${i}" data-field="expected" />
+                    </div>
+                    <button onclick="removeEditStep(${i})" class="p-1.5 text-slate-400 hover:text-red-500 transition mt-1">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                    </button>
+                  ` : `
+                    <div class="flex-1">
+                      <div class="text-sm text-slate-700 mb-1"><span class="text-slate-400 font-medium">操作：</span>${escHtml(s.action)}</div>
+                      <div class="text-sm text-slate-500"><span class="text-emerald-600 font-medium">预期：</span>${escHtml(s.expected)}</div>
+                    </div>
+                  `}
+                </div>
+              `).join('')}
+              ${isEditing ? `
+                <button onclick="addEditStep()" class="mt-2 flex items-center gap-1.5 text-sm text-brand-600 hover:text-brand-700 font-medium transition">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+                  添加步骤
+                </button>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    function escHtml(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+    // ─── Edit ────────────────────────────────────────────────
+    function startEdit() {
+      state.editingCase = JSON.parse(JSON.stringify(state.currentCase));
+      render();
+    }
+
+    function cancelEdit() {
+      state.editingCase = null;
+      render();
+    }
+
+    function addEditStep() {
+      state.editingCase.steps.push({ action: '', expected: '' });
+      render();
+    }
+
+    function removeEditStep(idx) {
+      if (state.editingCase.steps.length <= 1) { showToast('至少需要一个步骤', 'error'); return; }
+      state.editingCase.steps.splice(idx, 1);
+      render();
+    }
+
+    function saveEdit() {
+      const ec = state.editingCase;
+      const titleEl = document.getElementById('edit-title');
+      const descEl = document.getElementById('edit-desc');
+      ec.title = titleEl.value.trim();
+      ec.description = descEl.value.trim();
+
+      // Gather step edits
+      document.querySelectorAll('#steps-container [data-step]').forEach(el => {
+        const i = parseInt(el.dataset.step);
+        const f = el.dataset.field;
+        ec.steps[i][f] = el.value.trim();
+      });
+
+      if (!ec.title) { showToast('标题不能为空', 'error'); return; }
+      if (ec.steps.some(s => !s.action || !s.expected)) { showToast('步骤操作和预期不能为空', 'error'); return; }
+
+      const idx = cases.findIndex(c => c.id === ec.id);
+      if (idx >= 0) {
+        cases[idx] = { ...cases[idx], title: ec.title, description: ec.description, steps: ec.steps, version: cases[idx].version + 1 };
+      }
+      state.currentCase = cases[idx];
+      state.editingCase = null;
+      showToast('用例已更新');
+      render();
+    }
+
+    function deleteCase(id) {
+      if (!confirm('确定删除该用例？此操作不可恢复')) return;
+      cases = cases.filter(c => c.id !== id);
+      showToast('用例已删除');
+      state.view = 'list';
+      state.currentCase = null;
+      render();
+    }
+
+    // ─── Create Modal ────────────────────────────────────────
+    function openCreateModal() {
+      const root = document.getElementById('modal-root');
+      root.innerHTML = `<div class="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4" onclick="if(event.target===this)closeModal()">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col slide-up" onclick="event.stopPropagation()">
+          <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+            <h2 class="text-lg font-bold text-slate-800">创建测试用例</h2>
+            <button onclick="closeModal()" class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 transition">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+          <div class="px-6 py-4 overflow-y-auto flex-1 space-y-4">
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-1.5">标题 <span class="text-red-400">*</span></label>
+              <input id="create-title" type="text" placeholder="输入测试用例标题" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-400" />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-1.5">描述</label>
+              <textarea id="create-desc" placeholder="描述测试目的和背景" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40 min-h-[80px]"></textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">所属模块</label>
+                <select id="create-module" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40">
+                  <option value="">未分类</option>
+                  ${modules.map(m => m.children.map(c => `<option value="${c.id}">${m.name} / ${c.name}</option>`).join('')).join('')}
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">优先级</label>
+                <select id="create-priority" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40">
+                  <option value="0">低</option>
+                  <option value="1" selected>中</option>
+                  <option value="2">高</option>
+                  <option value="3">紧急</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-1.5">标签</label>
+              <input id="create-tags" type="text" placeholder="输入标签，逗号分隔" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/40" />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-1.5">测试步骤 <span class="text-red-400">*</span></label>
+              <div id="create-steps">
+                <div class="step-row">
+                  <div class="step-num">1</div>
+                  <div class="flex-1">
+                    <input type="text" placeholder="操作步骤" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mb-1 focus:outline-none focus:ring-2 focus:ring-brand-500/40 cs-action" />
+                    <input type="text" placeholder="预期结果" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500/40 cs-expected" />
+                  </div>
+                </div>
+              </div>
+              <button onclick="addCreateStep()" class="mt-2 flex items-center gap-1.5 text-sm text-brand-600 hover:text-brand-700 font-medium transition">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+                添加步骤
+              </button>
+            </div>
+          </div>
+          <div class="px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
+            <button onclick="closeModal()" class="px-5 py-2 rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 transition">取消</button>
+            <button onclick="submitCreate()" class="px-5 py-2 rounded-lg bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition shadow-sm">创建用例</button>
+          </div>
+        </div>
+      </div>`;
+      // Focus title
+      setTimeout(() => document.getElementById('create-title')?.focus(), 100);
+    }
+
+    function addCreateStep() {
+      const container = document.getElementById('create-steps');
+      const count = container.children.length + 1;
+      const row = document.createElement('div');
+      row.className = 'step-row';
+      row.innerHTML = `<div class="step-num">${count}</div>
+        <div class="flex-1">
+          <input type="text" placeholder="操作步骤" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mb-1 focus:outline-none focus:ring-2 focus:ring-brand-500/40 cs-action" />
+          <input type="text" placeholder="预期结果" class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500/40 cs-expected" />
+        </div>
+        <button onclick="this.parentElement.remove();renumberCreateSteps()" class="p-1.5 text-slate-400 hover:text-red-500 transition mt-1">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>`;
+      container.appendChild(row);
+    }
+
+    function renumberCreateSteps() {
+      document.querySelectorAll('#create-steps .step-row').forEach((row, i) => {
+        row.querySelector('.step-num').textContent = i + 1;
+      });
+    }
+
+    function closeModal() {
+      document.getElementById('modal-root').innerHTML = '';
+    }
+
+    function submitCreate() {
+      const title = document.getElementById('create-title').value.trim();
+      const desc = document.getElementById('create-desc').value.trim();
+      const moduleId = document.getElementById('create-module').value;
+      const priority = parseInt(document.getElementById('create-priority').value);
+      const tagsStr = document.getElementById('create-tags').value.trim();
+      const tags = tagsStr ? tagsStr.split(/[,，]/).map(t => t.trim()).filter(Boolean) : [];
+
+      const steps = [];
+      document.querySelectorAll('#create-steps .step-row').forEach(row => {
+        const action = row.querySelector('.cs-action').value.trim();
+        const expected = row.querySelector('.cs-expected').value.trim();
+        if (action && expected) steps.push({ action, expected });
+      });
+
+      if (!title) { showToast('标题不能为空', 'error'); return; }
+      if (steps.length === 0) { showToast('至少需要一个完整的步骤', 'error'); return; }
+
+      const newCase = {
+        id: 'tc' + Date.now(),
+        title,
+        description: desc,
+        moduleId: moduleId || null,
+        status: 'draft',
+        priority,
+        tags,
+        steps,
+        createdBy: '张三',
+        createdAt: new Date().toISOString().slice(0, 10),
+        version: 1,
+      };
+      cases.unshift(newCase);
+      closeModal();
+      showToast('用例创建成功');
+      state.currentPage = 1;
+      render();
+    }
+
+    // ─── Init ────────────────────────────────────────────────
+    render();
+  </script>
+</body>
+</html>

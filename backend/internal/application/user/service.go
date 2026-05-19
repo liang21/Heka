@@ -36,7 +36,7 @@ func (s *Service) Login(ctx context.Context, req LoginRequest) (*TokenResponse, 
 		return nil, err
 	}
 
-	if !auth.CheckPassword(req.Password, u.PasswordHash) {
+	if !auth.CheckPassword(u.PasswordHash, req.Password) {
 		return nil, shared.ErrAuthInvalidCredentials
 	}
 
@@ -58,6 +58,7 @@ func (s *Service) Login(ctx context.Context, req LoginRequest) (*TokenResponse, 
 }
 
 func (s *Service) GetMe(ctx context.Context, userID shared.ID) (*UserResponse, error) {
+	// Note: Repository interface uses string for ID - conversion required
 	u, err := s.repo.FindByID(ctx, userID.String())
 	if err != nil {
 		return nil, err

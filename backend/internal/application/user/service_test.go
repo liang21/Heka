@@ -190,3 +190,48 @@ func TestUserService_RefreshToken_Expired(t *testing.T) {
 	assert.Nil(t, resp)
 	assert.Error(t, err)
 }
+
+// Additional edge case tests
+
+func TestUserService_Login_RepositoryError(t *testing.T) {
+	t.Parallel()
+	repo := new(mockUserRepo)
+	svc := NewService(repo, "test-secret", 24*time.Hour, 7*24*time.Hour)
+
+	repo.On("FindByEmail", mock.Anything, "test@example.com").Return(nil, shared.ErrSysInternal)
+
+	resp, err := svc.Login(context.Background(), LoginRequest{
+		Email:    "test@example.com",
+		Password: "password123",
+	})
+
+	assert.Nil(t, resp)
+	assert.Error(t, err)
+	assert.Equal(t, shared.ErrSysInternal, err)
+}
+
+func TestUserService_RefreshToken_MalformedToken(t *testing.T) {
+	t.Parallel()
+	repo := new(mockUserRepo)
+	svc := NewService(repo, "test-secret", 24*time.Hour, 7*24*time.Hour)
+
+	resp, err := svc.RefreshToken(context.Background(), "not-a-valid-jwt-token")
+
+	assert.Nil(t, resp)
+	assert.Error(t, err)
+}
+
+func TestUserService_GetMe_UserNotFound(t *testing.T) {
+	t.Parallel()
+	repo := new(mockUserRepo)
+	svc := NewService(repo, "test-secret", 24*time.Hour, 7*24*time.Hour)
+
+	userID := shared.NewID()
+	repo.On("FindByID", mock.Anything, userID.String()).Return(nil, shared.ErrUserNotFound)
+
+	resp, err := svc.GetMe(context.Background(), userID)
+
+	assert.Nil(t, resp)
+	assert.Error(t, err)
+	assert.Equal(t, shared.ErrUserNotFound, err)
+}

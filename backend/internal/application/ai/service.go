@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/liang21/heka/internal/application/rag"
 	"github.com/liang21/heka/internal/domain/shared"
@@ -28,11 +29,14 @@ func NewService(manager *ai.Manager, ragSvc *rag.Service, taskRepo shared.AsyncT
 }
 
 func (s *Service) GenerateTestCases(ctx context.Context, userID shared.ID, req GenerateRequest) (*TaskResponse, error) {
-	input, _ := json.Marshal(map[string]interface{}{
+	input, err := json.Marshal(map[string]interface{}{
 		"file_id":  req.FileID,
 		"count":    req.Count,
 		"negative": req.IncludeNegative,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal task input: %w", err)
+	}
 
 	task := &shared.AsyncTask{
 		ID:       shared.NewID(),
@@ -56,10 +60,13 @@ func (s *Service) GenerateTestCases(ctx context.Context, userID shared.ID, req G
 }
 
 func (s *Service) Analyze(ctx context.Context, userID shared.ID, req AnalyzeRequest) (*TaskResponse, error) {
-	input, _ := json.Marshal(map[string]interface{}{
+	input, err := json.Marshal(map[string]interface{}{
 		"project_id":  req.ProjectID,
 		"description": req.Description,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal task input: %w", err)
+	}
 
 	task := &shared.AsyncTask{
 		ID:       shared.NewID(),

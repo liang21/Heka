@@ -51,7 +51,7 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 
 	userResp, err := h.svc.GetMe(r.Context(), userID)
 	if err != nil {
-		response.Error(w, shared.ErrTestCaseNotFound)
+		response.Error(w, shared.ErrUserNotFound)
 		return
 	}
 

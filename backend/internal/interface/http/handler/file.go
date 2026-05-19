@@ -4,7 +4,9 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/liang21/heka/internal/application/file"
@@ -13,6 +15,19 @@ import (
 )
 
 // tasks.md: T137 | spec.md: §4.10 File Handler Implementation
+
+// Allowed MIME types for file upload (security whitelist)
+var allowedMimeTypes = map[string]bool{
+	"application/pdf":                      true,
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.document": true,
+	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":       true,
+	"application/vnd.openxmlformats-officedocument.presentationml.presentation": true,
+	"image/png":    true,
+	"image/jpeg":   true,
+	"image/gif":    true,
+	"text/plain":   true,
+	"text/markdown": true,
+}
 
 type FileService interface {
 	Upload(ctx context.Context, userID, projectID shared.ID, name, contentType string, size int64, reader io.Reader) (*file.FileResponse, error)
@@ -55,21 +70,71 @@ func (h *FileHandler) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 	defer uploadedFile.Close()
 
+	// Security: Validate filename
+	filename := header.Filename
+	if filename == "" {
+		response.Error(w, shared.NewAppError("FILE-VL-004", "filename is required", http.StatusBadRequest))
+		return
+	}
+
+	// Security: Prevent path traversal attacks
+	if strings.Contains(filename, "..") || strings.Contains(filename, "/") || strings.Contains(filename, "\\") {
+		response.Error(w, shared.NewAppError("FILE-VL-005", "invalid filename", http.StatusBadRequest))
+		return
+	}
+
+	// Security: Validate file extension
+	ext := strings.ToLower(filepath.Ext(filename))
+	if !isValidExtension(ext) {
+		response.Error(w, shared.NewAppError("FILE-VL-006", "file type not allowed", http.StatusBadRequest))
+		return
+	}
+
+	// Security: Validate content type
 	contentType := header.Header.Get("Content-Type")
+	if !allowedMimeTypes[contentType] {
+		response.Error(w, shared.NewAppError("FILE-VL-001", "invalid file type", http.StatusBadRequest))
+		return
+	}
+
 	size := header.Size
 
+	// Security: Validate file size
 	if size > h.maxUploadSize {
 		response.Error(w, shared.ErrFileTooLarge)
 		return
 	}
 
-	f, err := h.svc.Upload(r.Context(), userID, projectID, header.Filename, contentType, size, uploadedFile)
+	// Security: Reject empty files
+	if size == 0 {
+		response.Error(w, shared.NewAppError("FILE-VL-007", "empty file not allowed", http.StatusBadRequest))
+		return
+	}
+
+	f, err := h.svc.Upload(r.Context(), userID, projectID, filename, contentType, size, uploadedFile)
 	if err != nil {
 		response.Error(w, shared.NewAppError("FILE-IE-001", "failed to upload file", http.StatusInternalServerError))
 		return
 	}
 
 	response.Created(w, f)
+}
+
+// isValidExtension checks if the file extension is allowed
+func isValidExtension(ext string) bool {
+	allowedExtensions := map[string]bool{
+		".pdf":  true,
+		".docx": true,
+		".xlsx": true,
+		".pptx": true,
+		".png":  true,
+		".jpg":  true,
+		".jpeg": true,
+		".gif":  true,
+		".txt":  true,
+		".md":   true,
+	}
+	return allowedExtensions[ext]
 }
 
 func (h *FileHandler) GetByID(w http.ResponseWriter, r *http.Request) {

@@ -17,9 +17,9 @@ type Task func() error
 
 // Pool implements a worker pool pattern
 type Pool struct {
-	wg     sync.WaitGroup
-	queue  chan Task
-	stop   chan struct{}
+	wg      sync.WaitGroup
+	queue   chan Task
+	stop    chan struct{}
 	stopped atomic.Bool
 }
 

@@ -36,6 +36,11 @@ var (
 	ErrTestCaseNotFound      = NewAppError("TC-NF-001", "test case not found", 404)
 	ErrTestCaseInvalidStatus = NewAppError("TC-VL-001", "invalid test case status transition", 400)
 	ErrTestCaseConflict      = NewAppError("TC-CF-001", "test case version conflict", 409)
+
+	ErrCollectionNotFound = NewAppError("TC-CL-NF-001", "collection not found", 404)
+	ErrTagDuplicateName   = NewAppError("TC-TG-CF-001", "tag with this name already exists in the project", 409)
+	ErrModuleNotFound     = NewAppError("TC-MO-NF-001", "module not found", 404)
+	ErrModuleConflict     = NewAppError("TC-MO-CF-001", "module with this name already exists", 409)
 )
 
 // ---------------------------------------------------------------------------
@@ -54,7 +59,8 @@ var (
 
 var (
 	ErrExecutionNotFound   = NewAppError("EX-NF-001", "execution not found", 404)
-	ErrExecutionConflict   = NewAppError("EX-CF-001", "duplicate execution result", 409)
+	ErrExecutionConflict       = NewAppError("EX-CF-001", "duplicate execution result", 409)
+	ErrExecutionActiveConflict = NewAppError("EX-CF-002", "only one in_progress execution allowed per plan", 409)
 )
 
 // ---------------------------------------------------------------------------

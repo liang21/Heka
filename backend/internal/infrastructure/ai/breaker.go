@@ -36,7 +36,7 @@ func (s State) String() string {
 
 // CircuitBreaker implements the circuit breaker pattern
 type CircuitBreaker struct {
-	mu                sync.Mutex
+	mu               sync.Mutex
 	maxFailures      int
 	resetTimeout     time.Duration
 	state            State

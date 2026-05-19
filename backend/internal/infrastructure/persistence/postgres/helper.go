@@ -1,16 +1,4 @@
 package postgres
 
-import (
-	"context"
-
-	"gorm.io/gorm"
-)
-
-type txKey struct{}
-
-func DBOrTx(ctx context.Context, db *gorm.DB) *gorm.DB {
-	if tx, ok := ctx.Value(txKey{}).(*gorm.DB); ok {
-		return tx
-	}
-	return db
-}
+// This file is a placeholder. The DBOrTx and txKey functions are already defined in database.go
+// to avoid duplicate declarations, this file remains empty.

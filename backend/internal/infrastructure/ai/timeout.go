@@ -6,11 +6,13 @@ import (
 )
 
 const (
-	DialTimeout       = 10 * time.Second
-	TLSTimeout        = 5 * time.Second
+	DialTimeout           = 10 * time.Second
+	TLSTimeout            = 5 * time.Second
 	ResponseHeaderTimeout = 30 * time.Second
-	RequestTimeout    = 60 * time.Second
-	GenerationTimeout = 55 * time.Second
+	RequestTimeout        = 60 * time.Second
+	GenerationTimeout     = 55 * time.Second
+	DefaultResetTimeout   = 2 * time.Minute
+	DefaultMaxAttempts    = 3
 )
 
 func ApplyTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {

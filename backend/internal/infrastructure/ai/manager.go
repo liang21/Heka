@@ -137,13 +137,12 @@ func (m *Manager) ResetBreaker(providerName string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	breaker, exists := m.breakers[providerName]
+	_, exists := m.breakers[providerName]
 	if !exists {
 		return fmt.Errorf("provider %s not found", providerName)
 	}
 
 	// Create new circuit breaker to reset
 	m.breakers[providerName] = NewCircuitBreaker(5, DefaultResetTimeout)
-	_ = breaker // Avoid unused variable warning
 	return nil
 }

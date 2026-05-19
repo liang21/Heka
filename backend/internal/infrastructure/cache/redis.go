@@ -23,11 +23,17 @@ func NewCacheClient(cfg interface{}) (*CacheClient, error) {
 	password := ""
 	db := 0
 
-	// Create Redis client
+	// Create Redis client with proper timeout configuration
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:%d", host, port),
-		Password: password,
-		DB:       db,
+		Addr:         fmt.Sprintf("%s:%d", host, port),
+		Password:     password,
+		DB:           db,
+		DialTimeout:  5 * time.Second,
+		ReadTimeout:  3 * time.Second,
+		WriteTimeout: 3 * time.Second,
+		PoolSize:     10,
+		MinIdleConns: 5,
+		MaxRetries:   3,
 	})
 
 	// Test connection

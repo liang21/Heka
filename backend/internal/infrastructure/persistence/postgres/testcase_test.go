@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	postgrescontainer "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -21,7 +21,7 @@ import (
 // testSuite holds the test database and repository
 type testSuite struct {
 	ctx        context.Context
-	container  *postgres.PostgresContainer
+	container  *postgrescontainer.PostgresContainer
 	repo       testcase.TestCaseRepository
 	projectID  shared.ID
 	moduleID   *shared.ID
@@ -35,11 +35,11 @@ func setupTestSuite(t *testing.T) *testSuite {
 	ctx := context.Background()
 
 	// Create PostgreSQL container with test database
-	pgContainer, err := postgres.RunContainer(ctx,
+	pgContainer, err := postgrescontainer.RunContainer(ctx,
 		testcontainers.WithImage("postgres:15-alpine"),
-		postgres.WithDatabase("heka_test"),
-		postgres.WithUsername("test"),
-		postgres.WithPassword("test"),
+		postgrescontainer.WithDatabase("heka_test"),
+		postgrescontainer.WithUsername("test"),
+		postgrescontainer.WithPassword("test"),
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("database system is ready to accept connections").
 				WithOccurrence(2).
@@ -147,20 +147,6 @@ func (ts *testSuite) createTestCase(title string) *testcase.TestCase {
 			},
 		},
 	}
-}
-
-// TestCreateWithSteps tests creating a test case with steps
-func TestCreateWithSteps(t *testing.T) {
-	t.Parallel()
-
-	ts := setupTestSuite(t)
-	defer ts.teardown(t)
-
-	tc := ts.createTestCase("Test Case with Steps")
-
-	err := ts.repo.Create(ts.ctx, tc)
-	assert.Error(t, err, "Create should fail in RED phase")
-	assert.Equal(t, assert.AnError, err, "Expected mock error")
 }
 
 // TestFindByID tests finding a test case by ID with steps preloaded

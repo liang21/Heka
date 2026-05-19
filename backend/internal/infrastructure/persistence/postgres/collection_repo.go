@@ -94,10 +94,12 @@ func (r *CollectionRepo) AddCases(ctx context.Context, collectionID shared.ID, c
 
 	// Get the current max sort_order for this collection
 	var maxSortOrder int
-	db.Model(&CollectionCaseModel{}).
+	if err := db.Model(&CollectionCaseModel{}).
 		Where("collection_id = ?", collectionID.String()).
 		Select("COALESCE(MAX(sort_order), 0)").
-		Scan(&maxSortOrder)
+		Scan(&maxSortOrder).Error; err != nil {
+		return fmt.Errorf("failed to get max sort order: %w", err)
+	}
 
 	// Prepare batch insert records
 	records := make([]CollectionCaseModel, 0, len(caseIDs))

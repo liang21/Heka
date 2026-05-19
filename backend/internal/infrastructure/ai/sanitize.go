@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 	"unicode"
 
 	"github.com/liang21/heka/internal/domain/shared"
@@ -36,8 +37,31 @@ var maliciousPatterns = []string{
 	"(?i)\\bsp_executesql\\b",
 }
 
+var (
+	injectionRegexes  []*regexp.Regexp
+	maliciousRegexes  []*regexp.Regexp
+	regexCompileOnce  sync.Once
+	whitespaceRegex   *regexp.Regexp
+)
+
+func initRegexCache() {
+	injectionRegexes = make([]*regexp.Regexp, len(injectionPatterns))
+	for i, pattern := range injectionPatterns {
+		injectionRegexes[i] = regexp.MustCompile(pattern)
+	}
+
+	maliciousRegexes = make([]*regexp.Regexp, len(maliciousPatterns))
+	for i, pattern := range maliciousPatterns {
+		maliciousRegexes[i] = regexp.MustCompile(pattern)
+	}
+
+	whitespaceRegex = regexp.MustCompile(`\s+`)
+}
+
 // SanitizeInput removes potentially dangerous content from user input
 func SanitizeInput(input string) string {
+	regexCompileOnce.Do(initRegexCache)
+
 	if input == "" {
 		return input
 	}
@@ -45,14 +69,12 @@ func SanitizeInput(input string) string {
 	result := input
 
 	// Remove prompt injection patterns
-	for _, pattern := range injectionPatterns {
-		re := regexp.MustCompile(pattern)
+	for _, re := range injectionRegexes {
 		result = re.ReplaceAllString(result, "[REDACTED]")
 	}
 
 	// Remove malicious SQL patterns
-	for _, pattern := range maliciousPatterns {
-		re := regexp.MustCompile(pattern)
+	for _, re := range maliciousRegexes {
 		result = re.ReplaceAllString(result, "[REDACTED]")
 	}
 
@@ -90,13 +112,14 @@ func SanitizeMessageList(messages []Message) []Message {
 
 // ValidateAIOutput validates AI-generated output for safety and correctness
 func ValidateAIOutput(output string) error {
+	regexCompileOnce.Do(initRegexCache)
+
 	if output == "" {
 		return shared.ErrAIInvalidInput
 	}
 
 	// Check for obvious prompt injection in output
-	for _, pattern := range injectionPatterns {
-		re := regexp.MustCompile(pattern)
+	for _, re := range injectionRegexes {
 		if re.MatchString(output) {
 			return fmt.Errorf("%w: output contains potentially harmful content", shared.ErrAIInvalidInput)
 		}
@@ -111,7 +134,10 @@ func ValidateAIOutput(output string) error {
 }
 
 // ValidateJSONOutput validates and parses JSON output
+// Note: Returns map[string]interface{} for flexibility, but callers should validate specific structure
 func ValidateJSONOutput(output string) (map[string]interface{}, error) {
+	regexCompileOnce.Do(initRegexCache)
+
 	output = strings.TrimSpace(output)
 
 	// Try to extract JSON if embedded in markdown code fences
@@ -139,6 +165,8 @@ func ValidateJSONOutput(output string) (map[string]interface{}, error) {
 
 // ValidateAndParseOutput validates output and parses into target structure
 func ValidateAndParseOutput(output string, target interface{}) error {
+	regexCompileOnce.Do(initRegexCache)
+
 	output = strings.TrimSpace(output)
 
 	// Try to extract JSON if embedded in markdown code fences
@@ -160,8 +188,9 @@ func ValidateAndParseOutput(output string, target interface{}) error {
 
 // DetectPromptInjection checks if input contains prompt injection attempts
 func DetectPromptInjection(input string) bool {
-	for _, pattern := range injectionPatterns {
-		re := regexp.MustCompile(pattern)
+	regexCompileOnce.Do(initRegexCache)
+
+	for _, re := range injectionRegexes {
 		if re.MatchString(input) {
 			return true
 		}
@@ -171,8 +200,9 @@ func DetectPromptInjection(input string) bool {
 
 // DetectSQLInjection checks if input contains SQL injection attempts
 func DetectSQLInjection(input string) bool {
-	for _, pattern := range maliciousPatterns {
-		re := regexp.MustCompile(pattern)
+	regexCompileOnce.Do(initRegexCache)
+
+	for _, re := range maliciousRegexes {
 		if re.MatchString(input) {
 			return true
 		}
@@ -182,8 +212,8 @@ func DetectSQLInjection(input string) bool {
 
 // compressWhitespace reduces multiple consecutive whitespace to single space
 func compressWhitespace(s string) string {
-	re := regexp.MustCompile(`\s+`)
-	return re.ReplaceAllString(s, " ")
+	regexCompileOnce.Do(initRegexCache)
+	return whitespaceRegex.ReplaceAllString(s, " ")
 }
 
 // removeControlCharacters removes invisible control characters

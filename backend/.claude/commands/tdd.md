@@ -1,20 +1,40 @@
 ---
 description: 启动 TDD 红灯协议：根据 tasks.md 任务 ID 生成对应的失败测试。
-argument-hint: [Phase_Number 或 Task_ID 或 “list”]
+argument-hint: [Phase_Number 或 Task_ID 或 "list"]
 allowed-tools: [Read, Grep, Bash]
 model: opus
 ---
 
 # 执行协议：The Phase-Specific Red-Light Protocol
 
+## 目录
+
+0. [项目文件关联](#项目文件关联)
+1. [触发方式](#触发方式)
+2. [执行流程](#执行流程)
+   - 0. [列出可用任务 (List Mode)](#0-列出可用任务-list-mode)
+   - 1. [精准定位 (Targeting)](#1-精准定位-targeting)
+   - 2. [上下文解析 (Context Resolution)](#2-上下文解析-context-resolution)
+   - 3. [路径映射表 (Path Mapping)](#3-路径映射表-path-mapping)
+   - 4. [计划文件集成 (Plan Integration)](#4-计划文件集成-plan-integration)
+   - 5. [红灯阶段 (Red Phase)](#5-红灯阶段-red-phase---生成失败测试)
+   - 6. [验证与汇报 (Verification)](#6-验证与汇报-verification--checkpoint)
+3. [错误处理](#错误处理)
+4. [与项目宪法的对齐](#与项目宪法的对齐)
+
+---
+
 ## 项目文件关联
 
 本协议严格遵循以下项目规范文件：
-- **主规格**: `specs/001-backend-functionality/spec.md` — 后端功能规格 v1.2
-- **任务列表**: `specs/001-backend-functionality/tasks.md` — 175 个原子化任务
-- **项目计划**: `specs/001-backend-functionality/plan.md` — 高层实施计划 v1.1
-- **项目宪法**: `constitutions.md` — 不可动摇的开发原则 v2.0
-- **操作手册**: `CLAUDE.md` — DDD 架构与编码规范
+
+| 文件 | 版本 | 用途 |
+|------|------|------|
+| `specs/001-backend-functionality/spec.md` | v1.2 | 后端功能规格、API 定义、验收标准 |
+| `specs/001-backend-functionality/tasks.md` | v1.1 | 175 个原子化任务、依赖关系 |
+| `specs/001-backend-functionality/plan.md` | v1.1 | 高层实施计划 |
+| `constitutions.md` | v2.0 | 项目宪法、不可动摇的原则 |
+| `CLAUDE.md` | - | DDD 架构规范、编码规范 |
 
 ## 触发方式
 
@@ -161,7 +181,7 @@ func TestEntityName(t *testing.T) {
 - 使用 `testify/assert` 断言
 - 遵循 `gofmt -s` 格式
 
-### 5. 验证与汇报 (Verification & Checkpoint)
+### 6. 验证与汇报 (Verification & Checkpoint)
 
 1. **运行测试**: `go test ./... -v`
 2. **捕获预期失败**:
@@ -196,11 +216,13 @@ func TestEntityName(t *testing.T) {
 
 | 场景 | 处理 |
 |------|------|
-| tasks.md 不存在 | 提示运行 `/makefile` 生成项目骨架 |
-| Phase 不存在 | 列出可用 Phase，提示使用 `/tdd list` |
-| Task ID 不存在 | 模糊搜索，提供建议 |
-| 依赖未满足 | 列出依赖任务 ID，拒绝生成 |
-| 目录不存在 | 自动创建目录结构 |
+| `tasks.md` 不存在 | 提示检查 `specs/001-backend-functionality/` 目录 |
+| `spec.md` 不存在 | 提示检查 `specs/001-backend-functionality/` 目录 |
+| Phase 不存在 | 列出 `tasks.md` 中可用 Phase，提示使用 `/tdd list` |
+| Task ID 不存在 | 在 `tasks.md` 中模糊搜索，提供建议 |
+| 依赖未满足 | 列出 `tasks.md` 中的依赖任务 ID，拒绝生成 |
+| 目录不存在 | 自动创建目录结构（参照 `CLAUDE.md` 目录规范） |
+| 计划冲突 | 如存在 `.claude/plans/*.md`，提示用户确认是否继续 |
 
 ## 与项目宪法的对齐
 

@@ -4,6 +4,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/liang21/heka/internal/domain/plan"
@@ -312,10 +313,12 @@ func (r *PlanRepository) AddCases(ctx context.Context, planID shared.ID, cases [
 		Max int
 	}
 	var maxRes maxResult
-	db.Table("plan_test_cases").
+	if err := db.Table("plan_test_cases").
 		Where("plan_id = ?", planID.String()).
 		Select("COALESCE(MAX(order_index), -1) as max").
-		Scan(&maxRes)
+		Scan(&maxRes).Error; err != nil {
+		return fmt.Errorf("failed to get max order: %w", err)
+	}
 	maxOrder = maxRes.Max
 
 	// Prepare records for insertion, handling duplicates

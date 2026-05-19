@@ -12,17 +12,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// NewModuleRepository creates a new ModuleRepository instance
-// This function will fail until the implementation is created
-func NewModuleRepository(db *gorm.DB) testcase.ModuleRepository {
-	// TODO: Implement ModuleRepository struct and constructor
-	// This requires creating:
-	// 1. internal/infrastructure/persistence/postgres/module_repo.go
-	// 2. moduleRepository struct that implements testcase.ModuleRepository
-	// 3. All CRUD methods with proper GORM operations
-	return nil
-}
-
 // createTestModule creates a test module with default values
 func createTestModule(projectID shared.ID, name string, parentID *shared.ID) *testcase.Module {
 	return &testcase.Module{

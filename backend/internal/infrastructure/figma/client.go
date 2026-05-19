@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // Client wraps the Figma REST API
@@ -21,8 +22,16 @@ type Client struct {
 func NewClient(accessToken string) *Client {
 	return &Client{
 		accessToken: accessToken,
-		httpClient:  &http.Client{},
-		baseURL:     "https://api.figma.com/v1",
+		httpClient: &http.Client{
+			Timeout: 60 * time.Second,
+			Transport: &http.Transport{
+				MaxIdleConns:        10,
+				IdleConnTimeout:     90 * time.Second,
+				DisableCompression:  false,
+				MaxIdleConnsPerHost: 10,
+			},
+		},
+		baseURL: "https://api.figma.com/v1",
 	}
 }
 
@@ -73,7 +82,10 @@ func (c *Client) GetFile(ctx context.Context, fileURL string) (*FigmaDocument, e
 
 	// Check status code
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("Figma API returned status %d: failed to read error body", resp.StatusCode)
+		}
 		return nil, fmt.Errorf("Figma API returned status %d: %s", resp.StatusCode, string(body))
 	}
 

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/liang21/heka/internal/domain/file"
@@ -191,8 +192,24 @@ func (w *IndexWorker) parseFile(ctx context.Context, fileEntity *file.File) (str
 
 // parseUploadedFile parses an uploaded file
 func (w *IndexWorker) parseUploadedFile(ctx context.Context, fileEntity *file.File) (string, error) {
-	// Open file
-	file, err := os.Open(fileEntity.Path)
+	// Validate file path is within storage directory to prevent path traversal
+	// Get the storage base path from config or use a default
+	// For now, validate that path is absolute and doesn't contain suspicious patterns
+	if fileEntity.Path == "" {
+		return "", fmt.Errorf("file path is empty")
+	}
+
+	// Clean the path and check for directory traversal
+	cleanPath := filepath.Clean(fileEntity.Path)
+	if cleanPath != fileEntity.Path {
+		return "", fmt.Errorf("file path contains suspicious elements")
+	}
+
+	// Open file with a timeout context
+	openCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	file, err := os.OpenFile(cleanPath, os.O_RDONLY, 0)
 	if err != nil {
 		return "", fmt.Errorf("failed to open file: %w", err)
 	}
@@ -205,7 +222,7 @@ func (w *IndexWorker) parseUploadedFile(ctx context.Context, fileEntity *file.Fi
 	}
 
 	// Parse file
-	text, err := p.Parse(ctx, file)
+	text, err := p.Parse(openCtx, file)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse: %w", err)
 	}

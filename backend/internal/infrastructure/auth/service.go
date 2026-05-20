@@ -2,11 +2,18 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/liang21/heka/internal/domain/shared"
 	"github.com/liang21/heka/internal/domain/user"
+)
+
+var (
+	ErrUserNotFound    = errors.New("user not found")
+	ErrUserExists      = errors.New("user already exists")
+	ErrInvalidPassword = errors.New("invalid credentials")
 )
 
 type PasswordHasher interface {
@@ -111,11 +118,11 @@ func toUserDTO(u *user.User) UserDTO {
 func (s *Service) Login(ctx context.Context, req LoginRequest) (*TokenResponse, error) {
 	u, err := s.userRepo.FindByEmail(ctx, req.Email)
 	if err != nil {
-		return nil, fmt.Errorf("invalid credentials")
+		return nil, ErrInvalidPassword
 	}
 
 	if !s.hasher.CheckPassword(req.Password, u.PasswordHash) {
-		return nil, fmt.Errorf("invalid credentials")
+		return nil, ErrInvalidPassword
 	}
 
 	accessToken, err := s.tokenMaker.GenerateAccessToken(u.ID, u.Email)
@@ -139,7 +146,7 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*TokenResp
 	// Check if user already exists
 	existing, err := s.userRepo.FindByEmail(ctx, req.Email)
 	if err == nil && existing != nil {
-		return nil, fmt.Errorf("user already exists")
+		return nil, ErrUserExists
 	}
 
 	// Hash password
@@ -181,7 +188,7 @@ func (s *Service) Register(ctx context.Context, req RegisterRequest) (*TokenResp
 func (s *Service) GetMe(ctx context.Context, userID string) (*UserDTO, error) {
 	u, err := s.userRepo.FindByID(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("user not found")
+		return nil, ErrUserNotFound
 	}
 
 	dto := toUserDTO(u)

@@ -46,13 +46,13 @@ import (
 )
 
 func main() {
+	logger.Init("info")
+	log.Println("heka: starting...")
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
-
-	logger.Init("info")
-	log.Println("heka: starting...")
 
 	db, err := initDB(cfg)
 	if err != nil {
@@ -69,7 +69,7 @@ func main() {
 		log.Fatalf("Failed to initialize Redis: %v", err)
 	}
 
-	eventBus := infraevent.NewEventBus(10)
+	eventBus := infraevent.NewEventBus(1000)
 
 	repos := initRepositories(db, eventBus)
 

@@ -4,28 +4,35 @@ package handler
 // Provides health check endpoint that verifies connectivity to DB, Redis, Milvus
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"sync"
+	"time"
 
 	"github.com/liang21/heka/internal/infrastructure/cache"
 )
 
-// HealthChecker is the interface for checking health of dependencies
-type HealthChecker interface {
-	Ping(ctx context.Context) error
-}
+const defaultHealthCacheTTL = 10 * time.Second
 
 type HealthHandler struct {
-	db    *sql.DB
-	redis *cache.CacheClient
+	db     *sql.DB
+	redis  *cache.CacheClient
+	cache  *healthCache
+	ttl    time.Duration
+}
+
+type healthCache struct {
+	result healthResponse
+	expiry time.Time
+	mu     sync.RWMutex
 }
 
 func NewHealthHandler(db *sql.DB, redis *cache.CacheClient) *HealthHandler {
 	return &HealthHandler{
 		db:    db,
 		redis: redis,
+		ttl:   defaultHealthCacheTTL,
 	}
 }
 
@@ -42,13 +49,29 @@ type checkResult struct {
 // Health returns the health status of all dependencies
 // spec.md §4.13 AC: GET /api/v1/health verifies connectivity to DB, Redis, Milvus
 func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	// Check cache first
+	if h.cache != nil && time.Now().Before(h.cache.expiry) {
+		h.cache.mu.RLock()
+		cached := h.cache.result
+		h.cache.mu.RUnlock()
+
+		statusCode := http.StatusOK
+		if cached.Status != "ok" {
+			statusCode = http.StatusServiceUnavailable
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(statusCode)
+		json.NewEncoder(w).Encode(cached)
+		return
+	}
+
 	checks := make(map[string]checkResult)
 	overallStatus := "ok"
 
 	// Check database
 	if h.db != nil {
-		if err := h.db.PingContext(ctx); err != nil {
+		if err := h.db.PingContext(r.Context()); err != nil {
 			checks["db"] = checkResult{Status: "error", Error: err.Error()}
 			overallStatus = "degraded"
 		} else {
@@ -61,7 +84,7 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 
 	// Check Redis
 	if h.redis != nil {
-		if err := h.redis.Ping(ctx); err != nil {
+		if err := h.redis.Ping(r.Context()); err != nil {
 			checks["redis"] = checkResult{Status: "error", Error: err.Error()}
 			overallStatus = "degraded"
 		} else {
@@ -75,6 +98,20 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 	// For now, we skip it since it's optional in some deployment modes
 	checks["milvus"] = checkResult{Status: "skip", Error: "milvus check not implemented"}
 
+	// Build response
+	response := healthResponse{
+		Status: overallStatus,
+		Checks: checks,
+	}
+
+	// Update cache
+	if h.cache != nil {
+		h.cache.mu.Lock()
+		h.cache.result = response
+		h.cache.expiry = time.Now().Add(h.ttl)
+		h.cache.mu.Unlock()
+	}
+
 	// Determine HTTP status code
 	statusCode := http.StatusOK
 	if overallStatus == "degraded" {
@@ -83,8 +120,5 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(healthResponse{
-		Status: overallStatus,
-		Checks: checks,
-	})
+	json.NewEncoder(w).Encode(response)
 }

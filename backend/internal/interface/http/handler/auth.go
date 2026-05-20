@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	infraauth "github.com/liang21/heka/internal/infrastructure/auth"
@@ -104,7 +105,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	token, err := h.svc.Register(r.Context(), req)
 	if err != nil {
-		if err.Error() == "user already exists" {
+		if errors.Is(err, infraauth.ErrUserExists) {
 			response.Error(w, shared.NewAppError("AUTH-CF-001", "user already exists", http.StatusConflict))
 			return
 		}

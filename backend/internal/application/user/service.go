@@ -57,9 +57,8 @@ func (s *Service) Login(ctx context.Context, req LoginRequest) (*TokenResponse, 
 	}, nil
 }
 
-func (s *Service) GetMe(ctx context.Context, userID shared.ID) (*UserResponse, error) {
-	// Note: Repository interface uses string for ID - conversion required
-	u, err := s.repo.FindByID(ctx, userID.String())
+func (s *Service) GetMe(ctx context.Context, userID string) (*UserResponse, error) {
+	u, err := s.repo.FindByID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}

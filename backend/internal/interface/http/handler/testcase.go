@@ -17,17 +17,17 @@ import (
 type TestCaseService interface {
 	CreateModule(ctx context.Context, userID shared.ID, req testcase.CreateModuleReq) (*testcase.ModuleDTO, error)
 	GetModuleTree(ctx context.Context, projectID shared.ID) ([]testcase.ModuleDTO, error)
-	UpdateModule(ctx context.Context, moduleID shared.ID, req testcase.UpdateModuleReq) (*testcase.ModuleDTO, error)
-	DeleteModule(ctx context.Context, moduleID shared.ID) error
+	UpdateModule(ctx context.Context, userID, moduleID shared.ID, req testcase.UpdateModuleReq) (*testcase.ModuleDTO, error)
+	DeleteModule(ctx context.Context, userID, moduleID shared.ID) error
 
-	CreateTag(ctx context.Context, projectID shared.ID, req testcase.CreateTagReq) (*testcase.TagDTO, error)
+	CreateTag(ctx context.Context, userID, projectID shared.ID, req testcase.CreateTagReq) (*testcase.TagDTO, error)
 	ListTags(ctx context.Context, projectID shared.ID) ([]testcase.TagDTO, error)
 	DeleteTag(ctx context.Context, tagID shared.ID) error
 
 	CreateTestCase(ctx context.Context, userID, projectID shared.ID, req testcase.CreateTestCaseReq) (*testcase.TestCaseResponse, error)
 	GetTestCase(ctx context.Context, caseID shared.ID) (*testcase.TestCaseResponse, error)
-	UpdateTestCase(ctx context.Context, caseID shared.ID, req testcase.UpdateTestCaseReq) (*testcase.TestCaseResponse, error)
-	DeleteTestCase(ctx context.Context, caseID shared.ID) error
+	UpdateTestCase(ctx context.Context, userID, caseID shared.ID, req testcase.UpdateTestCaseReq) (*testcase.TestCaseResponse, error)
+	DeleteTestCase(ctx context.Context, userID, caseID shared.ID) error
 	ListTestCases(ctx context.Context, f testcase.TestCaseFilter) ([]testcase.TestCaseListResponse, int64, error)
 
 	CreateCollection(ctx context.Context, userID shared.ID, req testcase.CreateCollectionReq) (*testcase.CollectionDTO, error)
@@ -84,6 +84,12 @@ func (h *TestCaseHandler) GetModuleTree(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *TestCaseHandler) UpdateModule(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(shared.ID)
+	if !ok {
+		response.Error(w, shared.ErrAuthForbidden)
+		return
+	}
+
 	moduleID, err := shared.ParseID(chi.URLParam(r, "id"))
 	if err != nil {
 		response.Error(w, shared.NewAppError("VL-006", "invalid module id", http.StatusBadRequest))
@@ -96,7 +102,7 @@ func (h *TestCaseHandler) UpdateModule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	module, err := h.svc.UpdateModule(r.Context(), moduleID, req)
+	module, err := h.svc.UpdateModule(r.Context(), userID, moduleID, req)
 	if err != nil {
 		response.Error(w, shared.NewAppError("TC-IE-003", "failed to update module", http.StatusInternalServerError))
 		return
@@ -106,13 +112,19 @@ func (h *TestCaseHandler) UpdateModule(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TestCaseHandler) DeleteModule(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(shared.ID)
+	if !ok {
+		response.Error(w, shared.ErrAuthForbidden)
+		return
+	}
+
 	moduleID, err := shared.ParseID(chi.URLParam(r, "id"))
 	if err != nil {
 		response.Error(w, shared.NewAppError("VL-006", "invalid module id", http.StatusBadRequest))
 		return
 	}
 
-	if err := h.svc.DeleteModule(r.Context(), moduleID); err != nil {
+	if err := h.svc.DeleteModule(r.Context(), userID, moduleID); err != nil {
 		response.Error(w, shared.NewAppError("TC-IE-004", "failed to delete module", http.StatusInternalServerError))
 		return
 	}
@@ -122,13 +134,19 @@ func (h *TestCaseHandler) DeleteModule(w http.ResponseWriter, r *http.Request) {
 
 // Tag handlers
 func (h *TestCaseHandler) CreateTag(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(shared.ID)
+	if !ok {
+		response.Error(w, shared.ErrAuthForbidden)
+		return
+	}
+
 	var req testcase.CreateTagReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		response.Error(w, shared.NewAppError("VL-001", "invalid request", http.StatusBadRequest))
 		return
 	}
 
-	tag, err := h.svc.CreateTag(r.Context(), req.ProjectID, req)
+	tag, err := h.svc.CreateTag(r.Context(), userID, req.ProjectID, req)
 	if err != nil {
 		response.Error(w, shared.NewAppError("TC-IE-005", "failed to create tag", http.StatusInternalServerError))
 		return
@@ -214,6 +232,12 @@ func (h *TestCaseHandler) GetTestCase(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *TestCaseHandler) UpdateTestCase(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(shared.ID)
+	if !ok {
+		response.Error(w, shared.ErrAuthForbidden)
+		return
+	}
+
 	caseID, err := shared.ParseID(chi.URLParam(r, "id"))
 	if err != nil {
 		response.Error(w, shared.NewAppError("VL-008", "invalid test case id", http.StatusBadRequest))
@@ -226,7 +250,7 @@ func (h *TestCaseHandler) UpdateTestCase(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	tc, err := h.svc.UpdateTestCase(r.Context(), caseID, req)
+	tc, err := h.svc.UpdateTestCase(r.Context(), userID, caseID, req)
 	if err != nil {
 		response.Error(w, shared.NewAppError("TC-IE-009", "failed to update test case", http.StatusInternalServerError))
 		return
@@ -236,13 +260,19 @@ func (h *TestCaseHandler) UpdateTestCase(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *TestCaseHandler) DeleteTestCase(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(shared.ID)
+	if !ok {
+		response.Error(w, shared.ErrAuthForbidden)
+		return
+	}
+
 	caseID, err := shared.ParseID(chi.URLParam(r, "id"))
 	if err != nil {
 		response.Error(w, shared.NewAppError("VL-008", "invalid test case id", http.StatusBadRequest))
 		return
 	}
 
-	if err := h.svc.DeleteTestCase(r.Context(), caseID); err != nil {
+	if err := h.svc.DeleteTestCase(r.Context(), userID, caseID); err != nil {
 		response.Error(w, shared.NewAppError("TC-IE-010", "failed to delete test case", http.StatusInternalServerError))
 		return
 	}

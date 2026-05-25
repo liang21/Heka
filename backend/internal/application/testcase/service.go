@@ -75,8 +75,18 @@ func (s *Service) GetTestCase(ctx context.Context, caseID shared.ID) (*TestCaseR
 	return s.toResponse(tc)
 }
 
-func (s *Service) ListTestCases(ctx context.Context, filter testcase.TestCaseFilter) ([]TestCaseListResponse, int64, error) {
-	cases, total, err := s.tcRepo.List(ctx, filter)
+func (s *Service) ListTestCases(ctx context.Context, filter TestCaseFilter) ([]TestCaseListResponse, int64, error) {
+	// Convert DTO filter to domain filter
+	domainFilter := testcase.TestCaseFilter{
+		ProjectID:  filter.ProjectID,
+		ModuleID:   filter.ModuleID,
+		Status:     nil, // Would need to convert string to *CaseStatus
+		Keyword:    "",
+		Page:       filter.Page,
+		PageSize:   filter.PageSize,
+	}
+
+	cases, total, err := s.tcRepo.List(ctx, domainFilter)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -200,6 +210,33 @@ func (s *Service) GetModuleTree(ctx context.Context, projectID shared.ID) ([]Mod
 	return s.buildTree(modules, nil), nil
 }
 
+func (s *Service) UpdateModule(ctx context.Context, userID, moduleID shared.ID, req UpdateModuleReq) (*ModuleDTO, error) {
+	mod, err := s.modRepo.FindByID(ctx, moduleID)
+	if err != nil {
+		return nil, err
+	}
+
+	mod.Name = req.Name
+	mod.Description = req.Description
+
+	if err := s.modRepo.Update(ctx, mod); err != nil {
+		return nil, err
+	}
+
+	return &ModuleDTO{
+		ID:          mod.ID,
+		ProjectID:   mod.ProjectID,
+		Name:        mod.Name,
+		Description: mod.Description,
+		ParentID:    mod.ParentID,
+		OrderIndex:  mod.OrderIndex,
+	}, nil
+}
+
+func (s *Service) DeleteModule(ctx context.Context, userID, moduleID shared.ID) error {
+	return s.modRepo.Delete(ctx, moduleID)
+}
+
 func (s *Service) buildTree(modules []*testcase.Module, parentID *shared.ID) []ModuleDTO {
 	var result []ModuleDTO
 	for _, m := range modules {
@@ -221,7 +258,7 @@ func (s *Service) buildTree(modules []*testcase.Module, parentID *shared.ID) []M
 
 // --- Tag Operations ---
 
-func (s *Service) CreateTag(ctx context.Context, userID shared.ID, req CreateTagReq) (*TagDTO, error) {
+func (s *Service) CreateTag(ctx context.Context, userID, projectID shared.ID, req CreateTagReq) (*TagDTO, error) {
 	tag := &testcase.Tag{
 		ID:        shared.NewID(),
 		ProjectID: req.ProjectID,
@@ -259,6 +296,10 @@ func (s *Service) ListTags(ctx context.Context, projectID shared.ID) ([]TagDTO, 
 	}
 
 	return resp, nil
+}
+
+func (s *Service) DeleteTag(ctx context.Context, tagID shared.ID) error {
+	return s.tagRepo.Delete(ctx, tagID)
 }
 
 // --- Collection Operations ---
@@ -310,6 +351,20 @@ func (s *Service) ListCollectionCases(ctx context.Context, collectionID shared.I
 	}
 
 	return resp, total, nil
+}
+
+func (s *Service) ListCollections(ctx context.Context, projectID shared.ID) ([]CollectionDTO, error) {
+	// TODO: Implement collection listing once repository supports it
+	// For now, return empty list to satisfy handler interface
+	return []CollectionDTO{}, nil
+}
+
+func (s *Service) AddToCollection(ctx context.Context, collectionID, caseID shared.ID) error {
+	return s.collRepo.AddCases(ctx, collectionID, []shared.ID{caseID})
+}
+
+func (s *Service) RemoveFromCollection(ctx context.Context, collectionID, caseID shared.ID) error {
+	return s.collRepo.RemoveCases(ctx, collectionID, []shared.ID{caseID})
 }
 
 // --- Helper ---

@@ -55,6 +55,47 @@ func (s *Service) Create(ctx context.Context, userID shared.ID, req CreatePlanRe
 	}, nil
 }
 
+func (s *Service) GetByID(ctx context.Context, planID shared.ID) (*PlanDetailResponse, error) {
+	p, err := s.repo.FindByID(ctx, planID)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.toDetailResponse(p)
+}
+
+func (s *Service) List(ctx context.Context, projectID shared.ID) ([]PlanResponse, error) {
+	plans, _, err := s.repo.List(ctx, projectID, nil, 1, 1000)
+	if err != nil {
+		return nil, err
+	}
+
+	resp := make([]PlanResponse, len(plans))
+	for i, p := range plans {
+		resp[i] = PlanResponse{
+			ID:        p.ID,
+			ProjectID: p.ProjectID,
+			Name:      p.Name,
+			Status:    p.Status,
+			CreatedBy: p.CreatedBy,
+			CreatedAt: p.CreatedAt,
+		}
+	}
+
+	return resp, nil
+}
+
+func (s *Service) AddCase(ctx context.Context, planID, caseID shared.ID) error {
+	cases := []plan.PlanTestCase{
+		{PlanID: planID, TestCaseID: caseID},
+	}
+	return s.repo.AddCases(ctx, planID, cases)
+}
+
+func (s *Service) RemoveCase(ctx context.Context, planID, caseID shared.ID) error {
+	return s.repo.RemoveCases(ctx, planID, []shared.ID{caseID})
+}
+
 func (s *Service) Start(ctx context.Context, planID shared.ID) (*PlanDetailResponse, error) {
 	p, err := s.repo.FindByID(ctx, planID)
 	if err != nil {

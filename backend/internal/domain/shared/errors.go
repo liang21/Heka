@@ -26,6 +26,8 @@ var (
 	ErrAuthInvalidCredentials = NewAppError("AUTH-AU-001", "invalid credentials", 401)
 	ErrAuthTokenExpired       = NewAppError("AUTH-AU-002", "token expired", 401)
 	ErrAuthForbidden          = NewAppError("AUTH-AU-003", "forbidden", 403)
+	ErrAuthMissingToken       = NewAppError("AUTH-AU-004", "missing authorization token", 401)
+	ErrAuthInvalidToken       = NewAppError("AUTH-AU-005", "invalid authorization token", 401)
 )
 
 // ---------------------------------------------------------------------------

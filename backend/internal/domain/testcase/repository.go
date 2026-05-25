@@ -8,6 +8,7 @@ import (
 
 type ModuleRepository interface {
 	Create(ctx context.Context, m *Module) error
+	FindByID(ctx context.Context, id shared.ID) (*Module, error)
 	Update(ctx context.Context, m *Module) error
 	Delete(ctx context.Context, id shared.ID) error
 	FindByProject(ctx context.Context, projectID shared.ID) ([]*Module, error)
@@ -16,6 +17,7 @@ type ModuleRepository interface {
 type TagRepository interface {
 	FindByProject(ctx context.Context, projectID shared.ID) ([]*Tag, error)
 	Create(ctx context.Context, tag *Tag) error
+	Delete(ctx context.Context, id shared.ID) error
 }
 
 type TestCaseRepository interface {

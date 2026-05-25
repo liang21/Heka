@@ -102,3 +102,21 @@ func (r *tagRepository) FindByProject(ctx context.Context, projectID shared.ID) 
 
 	return tags, nil
 }
+
+// Delete deletes a tag by its ID
+func (r *tagRepository) Delete(ctx context.Context, id shared.ID) error {
+	if id.IsEmpty() {
+		return fmt.Errorf("tag ID cannot be empty")
+	}
+
+	result := DBOrTx(ctx, r.db).Delete(&tagGorm{}, "id = ?", string(id))
+	if result.Error != nil {
+		return fmt.Errorf("failed to delete tag: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("tag not found")
+	}
+
+	return nil
+}

@@ -128,6 +128,21 @@ func (r *moduleRepository) Update(ctx context.Context, m *testcase.Module) error
 	return nil
 }
 
+// FindByID finds a module by its ID
+func (r *moduleRepository) FindByID(ctx context.Context, id shared.ID) (*testcase.Module, error) {
+	if id.IsEmpty() {
+		return nil, shared.ErrModuleNotFound
+	}
+
+	var gormModel moduleGorm
+	result := DBOrTx(ctx, r.db).First(&gormModel, "id = ?", string(id))
+	if result.Error != nil {
+		return nil, shared.ErrModuleNotFound
+	}
+
+	return gormModel.toDomain(), nil
+}
+
 // Delete deletes a module from the database
 // Note: Foreign key constraint with ON DELETE CASCADE will handle children deletion
 func (r *moduleRepository) Delete(ctx context.Context, id shared.ID) error {
